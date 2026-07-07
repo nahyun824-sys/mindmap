@@ -4,12 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>MindTrip</title>
-<meta name="theme-color" id="metaTheme" content="#eae7e1">
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&display=swap">
+<meta name="theme-color" id="metaTheme" content="#f0f2f5">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,135 +12,172 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root{
-    --bg:#eae7e1; --panel:#faf9f6; --line:#e2ded6; --text:#23221e; --sub:#8e897d;
-    --accent:#23221e; --on-accent:#faf9f6; --accent-soft:#e4e0d8;
-    --danger:#a8574f; --danger-soft:#f1e3e0;
-    --field:#f2f0ea; --dot:#d8d4ca;
-    --shadow:0 1px 2px rgba(35,34,30,.04), 0 6px 20px rgba(35,34,30,.05);
-    --shadow-lg:0 8px 40px rgba(35,34,30,.16);
+    --primary:#667eea; --on-primary:#ffffff; --primary-soft:#f5f3ff;
+    --bg:#f0f2f5; --panel:#ffffff; --line:#f0f2f5; --line2:#e2e5ea;
+    --text:#1a1a2e; --body:#333333; --sub:#aaaaaa;
+    --red:#f56565; --red-soft:#fce8e6; --green:#68d391;
+    --field:#fafafa; --dot:#e1e4ea;
+    --shadow:0 2px 10px rgba(0,0,0,.06);
+    --shadow-md:0 4px 20px rgba(0,0,0,.07);
+    --shadow-lg:0 20px 60px rgba(0,0,0,.2);
+    --nav:64px;
     --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
   }
   :root[data-theme="dark"]{
-    --bg:#171613; --panel:#211f1b; --line:#33312a; --text:#ece9e1; --sub:#8f8a7c;
-    --accent:#ece9e1; --on-accent:#1b1a16; --accent-soft:rgba(236,233,225,.09);
-    --danger:#cf827a; --danger-soft:rgba(207,130,122,.13);
-    --field:#2b2923; --dot:#232119;
-    --shadow:0 1px 2px rgba(0,0,0,.2), 0 6px 20px rgba(0,0,0,.25);
-    --shadow-lg:0 8px 40px rgba(0,0,0,.5);
+    --primary:#7c8cf8; --on-primary:#ffffff; --primary-soft:rgba(124,140,248,.14);
+    --bg:#14151a; --panel:#1e2027; --line:#262933; --line2:#343849;
+    --text:#eceef4; --body:#d5d8e0; --sub:#7d8290;
+    --red:#f07575; --red-soft:rgba(240,117,117,.14); --green:#68d391;
+    --field:#262a34; --dot:#20232b;
+    --shadow:0 2px 10px rgba(0,0,0,.25);
+    --shadow-md:0 4px 20px rgba(0,0,0,.3);
+    --shadow-lg:0 20px 60px rgba(0,0,0,.55);
   }
   @media (prefers-color-scheme: dark){
     :root[data-theme="system"]{
-      --bg:#171613; --panel:#211f1b; --line:#33312a; --text:#ece9e1; --sub:#8f8a7c;
-      --accent:#ece9e1; --on-accent:#1b1a16; --accent-soft:rgba(236,233,225,.09);
-      --danger:#cf827a; --danger-soft:rgba(207,130,122,.13);
-      --field:#2b2923; --dot:#232119;
-      --shadow:0 1px 2px rgba(0,0,0,.2), 0 6px 20px rgba(0,0,0,.25);
-      --shadow-lg:0 8px 40px rgba(0,0,0,.5);
+      --primary:#7c8cf8; --on-primary:#ffffff; --primary-soft:rgba(124,140,248,.14);
+      --bg:#14151a; --panel:#1e2027; --line:#262933; --line2:#343849;
+      --text:#eceef4; --body:#d5d8e0; --sub:#7d8290;
+      --red:#f07575; --red-soft:rgba(240,117,117,.14); --green:#68d391;
+      --field:#262a34; --dot:#20232b;
+      --shadow:0 2px 10px rgba(0,0,0,.25);
+      --shadow-md:0 4px 20px rgba(0,0,0,.3);
+      --shadow-lg:0 20px 60px rgba(0,0,0,.55);
     }
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html,body{height:100%; overscroll-behavior:none;}
   body{
-    font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
-    background:var(--bg); color:var(--text); overflow:hidden; position:fixed; inset:0;
-    user-select:none; -webkit-user-select:none;
-    -webkit-font-smoothing:antialiased; letter-spacing:-.01em;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+    background:var(--bg); color:var(--body); overflow:hidden; position:fixed; inset:0;
+    user-select:none; -webkit-user-select:none; -webkit-font-smoothing:antialiased;
   }
   button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; font-size:14px;}
   svg{display:block; flex:0 0 auto;}
   input,select,textarea{
-    font-family:inherit; font-size:16px; border:1.5px solid transparent; border-radius:12px;
-    padding:12px 14px; background:var(--field); color:var(--text); outline:none; width:100%;
-    -webkit-user-select:text; user-select:text; transition:border-color .15s, background .15s;
+    font-family:inherit; font-size:16px; border:1.5px solid var(--line2); border-radius:10px;
+    padding:10px 12px; background:var(--panel); color:var(--body); outline:none; width:100%;
+    -webkit-user-select:text; user-select:text; transition:border-color .15s;
     -webkit-appearance:none; appearance:none;
   }
-  input:focus,select:focus,textarea:focus{border-color:var(--accent); background:var(--panel);}
+  input:focus,select:focus,textarea:focus{border-color:var(--primary);}
   ::placeholder{color:var(--sub);}
 
   .screen{position:absolute; inset:0; display:none; flex-direction:column;}
   .screen.active{display:flex;}
-  .icon-btn{
-    width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center;
-    color:var(--sub); transition:background .15s;
-  }
-  .icon-btn:active{background:var(--field); color:var(--text);}
 
-  /* ═══ 홈 ═══ */
-  .home-head{
-    padding:calc(18px + var(--sat)) 20px 6px; display:flex; align-items:center; gap:8px;
+  /* ═══ 홈: 헤더 & 뷰 & 하단 네비 ═══ */
+  .app-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:calc(18px + var(--sat)) 20px 4px;
   }
-  .logo{font-family:'Playfair Display','Pretendard Variable',serif; font-size:25px; font-weight:500; letter-spacing:0; flex:1;}
-  .logo span{color:var(--sub);}
-  .search-row{display:flex; gap:8px; padding:8px 16px 10px;}
-  .search-box{
-    flex:1; display:flex; align-items:center; gap:9px; background:var(--field);
-    border-radius:13px; padding:0 14px; color:var(--sub);
+  .cal-title{font-size:20px; font-weight:700; color:var(--text);}
+  .home-scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .view{display:none; padding:14px 20px calc(var(--nav) + 24px + var(--sab));}
+  .view.active{display:block;}
+
+  .bottom-nav{
+    position:absolute; bottom:0; left:0; right:0; height:calc(var(--nav) + var(--sab));
+    padding-bottom:var(--sab);
+    background:var(--panel); border-top:1px solid var(--line); display:flex; z-index:30;
+    box-shadow:0 -4px 20px rgba(0,0,0,.06);
   }
-  .search-box input{background:none; border:none; padding:12px 0; border-radius:0; font-size:15px;}
-  .search-box input:focus{background:none;}
-  .chip-btn{
-    display:flex; align-items:center; gap:6px; padding:0 15px; border-radius:13px;
-    background:var(--accent-soft); color:var(--accent); font-size:13.5px; font-weight:600;
+  .nav-item{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    font-size:11px; font-weight:600; color:var(--sub); transition:color .15s;
   }
-  .chip-btn:active{opacity:.7;}
-  .home-body{flex:1; overflow-y:auto; padding:6px 16px calc(110px + var(--sab)); -webkit-overflow-scrolling:touch;}
+  .nav-item .ni{font-size:21px;}
+  .nav-item.active{color:var(--primary);}
+
+  /* ═══ 마인드맵 목록 뷰 ═══ */
+  .list-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:8px;}
+  .list-title{font-size:17px; font-weight:700; color:var(--text);}
+  .list-actions{display:flex; gap:6px;}
+  .sm-btn{
+    background:var(--panel); color:var(--body); border:1px solid var(--line2); border-radius:10px;
+    padding:7px 12px; font-size:12px; font-weight:600;
+  }
+  .sm-btn:active{background:var(--field);}
+  .sm-btn.primary{background:var(--primary); color:var(--on-primary); border-color:var(--primary);}
+  .search-wrap{
+    background:var(--panel); border-radius:12px; padding:10px 14px; margin-bottom:14px;
+    box-shadow:var(--shadow); display:flex; align-items:center; gap:9px; color:var(--sub);
+  }
+  .search-wrap input{border:none; padding:2px 0; border-radius:0; font-size:14px; background:none;}
 
   .topic-row{
-    display:flex; align-items:center; gap:2px; padding:12px 6px; border-radius:12px;
-    font-weight:600; font-size:16.5px; letter-spacing:-.02em; cursor:pointer;
+    display:flex; align-items:center; gap:2px; padding:11px 4px; border-radius:10px;
+    font-weight:700; font-size:15.5px; color:var(--text); cursor:pointer;
   }
-  .topic-row:active{background:var(--field);}
-  .topic-caret{width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:var(--sub); transition:transform .18s;}
+  .topic-caret{width:22px; height:22px; display:flex; align-items:center; justify-content:center; color:var(--sub); transition:transform .18s;}
   .topic-caret.open{transform:rotate(90deg);}
-  .topic-ficon{color:var(--sub); margin-right:8px;}
+  .topic-ficon{margin-right:7px; font-size:17px;}
   .topic-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .topic-cnt{font-size:12.5px; color:var(--sub); font-weight:500; margin-left:8px;}
+  .topic-cnt{font-size:12px; color:var(--sub); font-weight:600; margin-left:7px;}
   .topic-btns{margin-left:auto; display:flex; gap:2px; flex:0 0 auto;}
   .topic-btns button{
-    width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;
-    color:var(--sub);
+    width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    color:var(--sub); font-size:14px;
   }
   .topic-btns button:active{background:var(--field);}
-  .tree-indent{margin-left:12px; border-left:1.5px solid var(--line); padding-left:10px;}
+  .tree-indent{margin-left:11px; border-left:1.5px solid var(--line2); padding-left:9px;}
 
   .map-card{
-    background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
-    padding:14px 15px; margin:6px 0; display:flex; align-items:center; gap:13px; cursor:pointer;
-    transition:transform .12s;
+    background:var(--panel); border-radius:12px; box-shadow:var(--shadow);
+    padding:13px 14px; margin:6px 0; display:flex; align-items:center; gap:12px; cursor:pointer;
+    transition:box-shadow .15s, transform .12s;
   }
-  .map-card:active{transform:scale(.98);}
+  .map-card:active{transform:scale(.985);}
   .mc-icon{
-    width:42px; height:42px; border-radius:13px; display:flex; align-items:center; justify-content:center;
-    flex:0 0 42px;
+    width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    font-size:19px; flex:0 0 40px;
   }
-  .mc-icon.trip{background:rgba(108,142,173,.14); color:#6c8ead;}
-  .mc-icon.idea{background:rgba(110,139,106,.14); color:#6e8b6a;}
+  .mc-icon.trip{background:var(--primary-soft);}
+  .mc-icon.idea{background:#d5f5e3;}
+  :root[data-theme="dark"] .mc-icon.idea{background:rgba(104,211,145,.15);}
+  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .mc-icon.idea{background:rgba(104,211,145,.15);} }
   .mc-main{flex:1; min-width:0;}
-  .mc-title{font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .mc-sub{font-size:12px; color:var(--sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;}
+  .mc-title{font-size:14.5px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mc-sub{font-size:11.5px; color:var(--sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .mc-btn{
-    width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-    color:var(--sub); flex:0 0 auto;
+    width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    color:var(--sub); flex:0 0 auto; font-size:15px;
   }
   .mc-btn:active{background:var(--field);}
-  .home-empty{text-align:center; color:var(--sub); padding:64px 20px; font-size:14px; line-height:1.9; font-weight:500;}
-  .home-empty .e-icon{
-    width:72px; height:72px; border-radius:24px; background:var(--accent-soft); color:var(--accent);
-    display:flex; align-items:center; justify-content:center; margin:0 auto 16px;
+  .home-empty{text-align:center; color:var(--sub); padding:48px 20px 20px; font-size:13.5px; line-height:1.8;}
+  .home-empty .e-icon{font-size:44px; display:block; margin-bottom:12px;}
+
+  /* ═══ 설정 뷰 ═══ */
+  .settings-section{
+    background:var(--panel); border-radius:14px; padding:18px; margin-bottom:14px; box-shadow:var(--shadow);
   }
-  .fab{
-    position:absolute; right:20px; bottom:calc(24px + var(--sab)); width:58px; height:58px;
-    border-radius:20px; background:var(--accent); color:var(--on-accent); display:flex; align-items:center; justify-content:center;
-    box-shadow:0 8px 24px rgba(28,28,26,.28); transition:transform .12s; z-index:20;
+  .sec-title{font-size:14px; font-weight:700; color:var(--text); margin-bottom:14px;}
+  .seg{display:flex; background:var(--line); border-radius:10px; padding:4px; gap:4px;}
+  .seg button{
+    flex:1; padding:8px; border-radius:8px; font-weight:600; font-size:12.5px; color:var(--sub);
+    transition:all .15s;
   }
-  .fab:active{transform:scale(.92);}
+  .seg button.on{background:var(--panel); color:var(--primary); box-shadow:0 2px 8px rgba(0,0,0,.08);}
+  .set-item{
+    display:flex; align-items:center; gap:12px; width:100%; padding:11px 0;
+    border-bottom:1px solid var(--line); font-size:13.5px; font-weight:600; color:var(--body); text-align:left;
+  }
+  .set-item:last-child{border-bottom:none;}
+  .set-item .si-icon{font-size:18px; width:26px; text-align:center;}
+  .set-item .si-desc{display:block; font-size:11px; color:var(--sub); font-weight:400; margin-top:2px;}
+  .set-note{font-size:12px; color:var(--sub); line-height:1.7;}
 
   /* ═══ 맵 화면 ═══ */
   .top-bar{
-    padding:calc(8px + var(--sat)) 10px 8px; display:flex; align-items:center; gap:4px;
-    background:var(--panel); border-bottom:1px solid var(--line); z-index:10;
+    padding:calc(10px + var(--sat)) 12px 10px; display:flex; align-items:center; gap:8px;
+    background:var(--bg); z-index:10;
   }
-  .tb-title{flex:1; font-size:15.5px; font-weight:600; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 4px;}
+  .nav-btn{
+    background:var(--panel); border-radius:10px; width:36px; height:36px; font-size:16px;
+    color:var(--body); box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;
+  }
+  .nav-btn:active{background:var(--field);}
+  .tb-title{flex:1; font-size:15.5px; font-weight:700; color:var(--text); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 2px;}
   #canvasWrap{
     flex:1; position:relative; overflow:hidden; touch-action:none;
     background-image:radial-gradient(circle, var(--dot) 1.2px, transparent 1.2px); background-size:26px 26px;
@@ -153,149 +185,181 @@
   #mmSvg{width:100%; height:100%; display:block; touch-action:none;}
   .mm-node{cursor:pointer;}
   .zoom-ctl{
-    position:absolute; top:12px; right:12px; display:flex; flex-direction:column; z-index:5;
-    background:var(--panel); border:1px solid var(--line); border-radius:13px; box-shadow:var(--shadow);
-    overflow:hidden;
+    position:absolute; top:12px; right:12px; display:flex; flex-direction:column; gap:5px; z-index:5;
   }
   .zoom-ctl button{
-    width:40px; height:38px; display:flex; align-items:center; justify-content:center; color:var(--sub);
+    width:36px; height:36px; border-radius:10px; background:var(--panel); color:var(--body);
+    box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;
   }
-  .zoom-ctl button:active{background:var(--field); color:var(--text);}
+  .zoom-ctl button:active{background:var(--field);}
   .mm-hint{
     position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:5;
-    font-size:11.5px; color:var(--sub); background:var(--panel); border:1px solid var(--line);
+    font-size:11.5px; color:var(--sub); background:var(--panel);
     padding:7px 15px; border-radius:20px; pointer-events:none; white-space:nowrap; transition:opacity .5s;
     box-shadow:var(--shadow); font-weight:500;
   }
   .sel-bar{
     position:absolute; left:12px; right:12px; bottom:calc(14px + var(--sab)); z-index:15;
-    display:none; gap:4px; padding:7px; background:var(--panel); border:1px solid var(--line);
-    border-radius:17px; box-shadow:var(--shadow-lg);
+    display:none; gap:4px; padding:7px; background:var(--panel);
+    border-radius:15px; box-shadow:var(--shadow-md);
     overflow-x:auto; -webkit-overflow-scrolling:touch;
   }
-  .sel-bar.show{display:flex; animation:sheetUp .25s cubic-bezier(.2,.9,.3,1);}
+  .sel-bar.show{display:flex; animation:popIn .18s ease;}
   .sel-bar button{
-    flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:10px 13px; border-radius:11px;
-    font-size:13px; font-weight:600; white-space:nowrap; color:var(--text);
+    flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:10px 13px; border-radius:10px;
+    font-size:13px; font-weight:600; white-space:nowrap; color:var(--body);
   }
   .sel-bar button:active{background:var(--field);}
   .sel-bar button svg{color:var(--sub);}
-  .sel-bar button.danger{color:var(--danger);}
-  .sel-bar button.danger svg{color:var(--danger);}
+  .sel-bar button.danger{color:var(--red);}
+  .sel-bar button.danger svg{color:var(--red);}
 
-  /* ═══ 바텀 시트 ═══ */
-  .backdrop{position:absolute; inset:0; background:rgba(10,11,15,.45); z-index:40; display:none;}
-  .backdrop.show{display:block; animation:fadeIn .22s;}
+  /* ═══ 모달 ═══ */
+  .backdrop{position:absolute; inset:0; background:rgba(0,0,0,.35); z-index:40; display:none;}
+  .backdrop.show{display:block; animation:fadeIn .18s;}
   .sheet{
-    position:absolute; left:0; right:0; bottom:0; z-index:50; background:var(--panel);
-    border-radius:24px 24px 0 0; box-shadow:var(--shadow-lg);
-    padding:10px 20px calc(20px + var(--sab)); display:none; max-height:88%;
-    flex-direction:column;
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:50;
+    background:var(--panel); border-radius:20px; box-shadow:var(--shadow-lg);
+    padding:22px; width:min(440px, calc(100vw - 36px)); max-height:84vh;
+    display:none; flex-direction:column;
   }
-  .sheet.show{display:flex; animation:sheetUp .32s cubic-bezier(.2,.9,.3,1);}
-  @keyframes sheetUp{from{transform:translateY(48px); opacity:0} to{transform:none; opacity:1}}
+  .sheet.show{display:flex; animation:popIn .18s ease;}
+  @keyframes popIn{from{transform:translate(-50%,-50%) scale(.95); opacity:0} to{transform:translate(-50%,-50%) scale(1); opacity:1}}
   @keyframes fadeIn{from{opacity:0} to{opacity:1}}
-  .sheet-grip{width:36px; height:4px; border-radius:4px; background:var(--line); margin:4px auto 14px; flex:0 0 auto;}
-  .sheet h3{font-size:17px; font-weight:600; margin-bottom:16px; flex:0 0 auto; letter-spacing:-.02em;}
-  .sheet-body{overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1;}
-  .field{margin-bottom:12px;}
-  .field label{display:block; font-size:12px; font-weight:600; color:var(--sub); margin-bottom:6px;}
+  .sheet h3{font-size:17px; font-weight:700; color:var(--text); margin-bottom:14px; flex:0 0 auto;}
+  .sheet-body{overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1; min-height:0;}
+  .field{margin-bottom:11px;}
+  .field label{display:block; font-size:11px; font-weight:600; color:var(--sub); margin-bottom:6px;}
   .field-row{display:flex; gap:8px;}
   .field-row .field{flex:1;}
-  .sheet-btns{display:flex; gap:8px; margin-top:8px; flex:0 0 auto;}
+  .sheet-btns{display:flex; gap:8px; margin-top:10px; flex:0 0 auto;}
   .primary-btn{
-    flex:1; background:var(--accent); color:var(--on-accent); font-size:15px; font-weight:600;
-    padding:14px; border-radius:14px; transition:transform .1s;
+    flex:1; background:var(--primary); color:var(--on-primary); font-size:14px; font-weight:600;
+    padding:12px; border-radius:11px; transition:transform .1s;
   }
-  .primary-btn:active{transform:scale(.98); filter:brightness(1.1);}
+  .primary-btn:active{transform:scale(.98);}
   .danger-btn{
-    background:var(--danger-soft); color:var(--danger); font-weight:600; padding:14px 16px; border-radius:14px;
-    display:flex; align-items:center; justify-content:center;
+    background:var(--red-soft); color:var(--red); font-weight:600; padding:12px 15px; border-radius:11px;
+    display:flex; align-items:center; justify-content:center; font-size:14px;
   }
-  .plain-btn{background:var(--field); font-weight:600; padding:14px 18px; border-radius:14px;}
+  .plain-btn{background:var(--line); color:var(--body); font-weight:600; padding:12px 16px; border-radius:11px; font-size:14px;}
   .convert-btn{
-    width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
-    padding:13px; border-radius:13px; background:var(--accent-soft); color:var(--accent);
-    font-size:14px; font-weight:600; margin-bottom:14px;
+    width:100%; display:flex; align-items:center; justify-content:center; gap:7px;
+    padding:11px; border-radius:11px; background:var(--primary-soft); color:var(--primary);
+    border:1.5px dashed #c4b5fd; font-size:13.5px; font-weight:600; margin-bottom:13px;
   }
-  .convert-btn:active{opacity:.7;}
-  .color-row{display:flex; gap:10px; flex-wrap:wrap; padding:2px 0;}
-  .color-dot{width:32px; height:32px; border-radius:50%; border:none; position:relative; transition:transform .12s;}
-  .color-dot.on{transform:scale(1.15); box-shadow:0 0 0 2.5px var(--panel), 0 0 0 4.5px var(--text);}
-  .set-item{
-    display:flex; align-items:center; gap:14px; width:100%; padding:15px 4px;
-    border-bottom:1px solid var(--line); font-size:15px; font-weight:500; text-align:left;
-  }
-  .set-item .si-icon{
-    width:40px; height:40px; border-radius:12px; background:var(--field); color:var(--sub);
-    display:flex; align-items:center; justify-content:center;
-  }
-  .set-item .si-desc{display:block; font-size:11.5px; color:var(--sub); font-weight:500; margin-top:3px;}
-  .set-note{font-size:12px; color:var(--sub); line-height:1.7; padding:16px 4px 4px; font-weight:500;}
-  .seg{display:flex; background:var(--field); border-radius:13px; padding:3px; gap:3px;}
-  .seg button{
-    flex:1; padding:11px; border-radius:10px; font-weight:600; font-size:13.5px; color:var(--sub);
-    transition:background .15s, color .15s;
-  }
-  .seg button.on{background:var(--panel); color:var(--text); box-shadow:var(--shadow);}
+  :root[data-theme="dark"] .convert-btn{border-color:rgba(124,140,248,.4);}
+  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .convert-btn{border-color:rgba(124,140,248,.4);} }
+  .convert-btn:active{opacity:.75;}
+  .color-row{display:flex; gap:9px; flex-wrap:wrap; padding:2px 0;}
+  .color-dot{width:28px; height:28px; border-radius:50%; border:2px solid transparent; transition:transform .12s;}
+  .color-dot.on{border-color:var(--text); transform:scale(1.18);}
 
   /* ═══ 일정표 ═══ */
   .itin-head{margin-bottom:8px; flex:0 0 auto;}
-  .itin-head .ih-meta{font-size:12.5px; color:var(--sub); margin-top:5px; font-weight:500;}
+  .itin-head h3{margin-bottom:0;}
+  .itin-head .ih-meta{font-size:12px; color:var(--sub); margin-top:4px;}
   .itin-total{
-    background:var(--accent-soft); color:var(--accent); font-weight:600; font-size:14px;
-    padding:13px 16px; border-radius:14px; margin:12px 0 4px; display:flex; justify-content:space-between;
+    background:var(--primary-soft); color:var(--primary); font-weight:700; font-size:13.5px;
+    padding:11px 14px; border-radius:11px; margin:10px 0 4px; display:flex; justify-content:space-between;
   }
-  .itin-day{margin-top:20px;}
-  .itin-day-head{display:flex; align-items:baseline; gap:8px; font-size:14.5px; font-weight:600; margin-bottom:9px; padding:0 2px;}
-  .itin-day-head .id-sum{margin-left:auto; font-size:12px; color:var(--sub); font-weight:500;}
+  .itin-day{margin-top:16px;}
+  .itin-day-head{display:flex; align-items:baseline; gap:8px; font-size:14px; font-weight:700; color:var(--text); margin-bottom:8px;}
+  .itin-day-head .id-sum{margin-left:auto; font-size:11.5px; color:var(--sub); font-weight:600;}
   .itin-item{
-    display:flex; gap:12px; padding:12px 14px; border-radius:14px;
+    display:flex; gap:10px; padding:10px 12px; border-radius:10px;
     margin-bottom:6px; background:var(--field); align-items:flex-start; cursor:pointer;
   }
-  .itin-item:active{background:var(--accent-soft);}
-  .ii-time{flex:0 0 44px; font-size:13px; font-weight:600; color:var(--accent); padding-top:2px; font-variant-numeric:tabular-nums;}
+  .itin-item:active{background:var(--primary-soft);}
+  .ii-time{
+    flex:0 0 auto; font-size:11px; font-weight:700; color:#1a5276; background:#e8f4fd;
+    padding:3px 7px; border-radius:6px; white-space:nowrap; margin-top:1px;
+  }
+  .ii-time.no-time{background:var(--line); color:var(--sub);}
+  :root[data-theme="dark"] .ii-time{background:rgba(109,177,232,.16); color:#8ec3ee;}
+  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .ii-time{background:rgba(109,177,232,.16); color:#8ec3ee;} }
   .ii-main{flex:1; min-width:0;}
-  .ii-title{font-size:14.5px; font-weight:500; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-  .ii-memo{font-size:12.5px; color:var(--sub); margin-top:4px; white-space:pre-wrap; line-height:1.5; font-weight:500;}
-  .ii-cost{font-size:12px; color:var(--sub); font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums;}
-  .cat-badge{display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--sub); font-weight:600;}
-  .cat-badge i{width:7px; height:7px; border-radius:50%;}
+  .ii-title{font-size:13.5px; font-weight:500; color:var(--body); display:flex; align-items:center; gap:7px; flex-wrap:wrap;}
+  .ii-memo{font-size:12px; color:var(--sub); margin-top:3px; white-space:pre-wrap; line-height:1.5;}
+  .ii-cost{font-size:11.5px; color:var(--sub); font-weight:600; margin-top:3px;}
+  .cat-badge{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--sub); font-weight:600;}
+  .cat-badge i{width:6px; height:6px; border-radius:50%;}
   .itin-add{
     width:100%; display:flex; align-items:center; justify-content:center; gap:6px;
-    padding:12px; border:1.5px dashed var(--line); border-radius:14px; color:var(--sub);
-    font-size:13px; font-weight:600; margin-top:2px;
+    padding:10px; border:1.5px dashed var(--line2); border-radius:10px; color:var(--sub);
+    font-size:12.5px; font-weight:600; margin-top:2px;
   }
   .itin-add:active{background:var(--field);}
-  .itin-empty{font-size:13px; color:var(--sub); padding:6px 4px 4px; font-weight:500;}
+  .itin-empty{font-size:12.5px; color:var(--sub); padding:4px 2px;}
 </style>
 </head>
 <body>
 
 <!-- ═══════════ 홈 ═══════════ -->
 <div class="screen" id="scrHome">
-  <div class="home-head">
-    <h1 class="logo">Mind<span>Trip</span></h1>
-    <button class="icon-btn" id="btnSettings" onclick="openSheet('setSheet')"></button>
+  <div class="app-header">
+    <div class="cal-title">MindTrip</div>
   </div>
-  <div class="search-row">
-    <div class="search-box">
-      <span id="searchIc"></span>
-      <input id="searchInput" type="search" placeholder="주제·마인드맵 검색">
+  <div class="home-scroll">
+    <!-- 마인드맵 목록 -->
+    <div class="view active" id="viewMaps">
+      <div class="list-header">
+        <div class="list-title">내 마인드맵</div>
+        <div class="list-actions">
+          <button class="sm-btn" onclick="addTopic(null)">＋ 주제</button>
+          <button class="sm-btn primary" onclick="openNewMapSheet()">＋ 새 마인드맵</button>
+        </div>
+      </div>
+      <div class="search-wrap">
+        <span id="searchIc"></span>
+        <input id="searchInput" type="search" placeholder="주제·마인드맵 검색">
+      </div>
+      <div id="homeBody"></div>
     </div>
-    <button class="chip-btn" id="btnAddTopic" onclick="addTopic(null)"></button>
+    <!-- 설정 -->
+    <div class="view" id="viewSettings">
+      <div class="settings-section">
+        <div class="sec-title">🎨 테마</div>
+        <div class="seg" id="themeSeg">
+          <button data-t="system">시스템</button>
+          <button data-t="light">라이트</button>
+          <button data-t="dark">다크</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="sec-title">💾 백업</div>
+        <button class="set-item" onclick="exportData()">
+          <span class="si-icon">⬇️</span>
+          <span>백업하기<span class="si-desc">모든 마인드맵을 JSON 파일로 저장합니다</span></span>
+        </button>
+        <button class="set-item" onclick="importFile.click()">
+          <span class="si-icon">⬆️</span>
+          <span>복원하기<span class="si-desc">백업 파일을 불러옵니다 (현재 데이터를 덮어씁니다)</span></span>
+        </button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+      </div>
+      <div class="settings-section">
+        <div class="sec-title">ℹ️ 안내</div>
+        <div class="set-note">
+          데이터는 이 기기(브라우저)에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우면 사라질 수 있으니, 중요한 내용은 백업해 두세요.<br><br>
+          마인드맵의 중심 주제 설정에서 <b>여행계획으로 변환</b>하면 날짜별 일정과 경비를 관리할 수 있어요.
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="home-body" id="homeBody"></div>
-  <button class="fab" id="btnNewMap" onclick="openNewMapSheet()"></button>
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-view="viewMaps"><span class="ni">🗺️</span>마인드맵</button>
+    <button class="nav-item" data-view="viewSettings"><span class="ni">⚙️</span>설정</button>
+  </nav>
 </div>
 
 <!-- ═══════════ 맵 캔버스 ═══════════ -->
 <div class="screen" id="scrMap">
   <div class="top-bar">
-    <button class="icon-btn" id="btnBack" onclick="goHome()"></button>
+    <button class="nav-btn" id="btnBack" onclick="goHome()">‹</button>
     <div class="tb-title" id="tbTitle"></div>
-    <button class="icon-btn" id="btnLayout" onclick="autoLayout()" title="자동 정돈"></button>
-    <button class="icon-btn" id="btnItin" onclick="openItin()" title="일정표"></button>
+    <button class="nav-btn" id="btnLayout" onclick="autoLayout()" title="자동 정돈"></button>
+    <button class="nav-btn" id="btnItin" onclick="openItin()" title="일정표"></button>
   </div>
   <div id="canvasWrap">
     <svg id="mmSvg"><g id="world"></g></svg>
@@ -309,12 +373,11 @@
   </div>
 </div>
 
-<!-- ═══════════ 시트 & 백드롭 ═══════════ -->
+<!-- ═══════════ 모달 & 백드롭 ═══════════ -->
 <div class="backdrop" id="backdrop" onclick="closeSheets()"></div>
 
 <!-- 새 마인드맵 -->
 <div class="sheet" id="mapSheet">
-  <div class="sheet-grip"></div>
   <h3>새 마인드맵</h3>
   <form onsubmit="return createMap(this)">
     <div class="field"><label>이름</label><input name="name" placeholder="예: 이직 고민, 오사카 여행" required></div>
@@ -328,13 +391,12 @@
 
 <!-- 맵 설정 -->
 <div class="sheet" id="mapSetSheet">
-  <div class="sheet-grip"></div>
   <h3>마인드맵 설정</h3>
   <form onsubmit="return saveMapSettings(this)">
     <div class="field"><label>이름</label><input name="name" required></div>
     <div class="field"><label>주제</label><select name="topic" id="mapSetTopic"></select></div>
     <div class="sheet-btns">
-      <button type="button" class="danger-btn" id="mapSetDel" onclick="deleteMapFromSheet()"></button>
+      <button type="button" class="danger-btn" onclick="deleteMapFromSheet()">삭제</button>
       <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
       <button type="submit" class="primary-btn">저장</button>
     </div>
@@ -343,15 +405,14 @@
 
 <!-- 여행계획으로 변환 -->
 <div class="sheet" id="convertSheet">
-  <div class="sheet-grip"></div>
-  <h3>여행계획으로 변환</h3>
+  <h3>✈️ 여행계획으로 변환</h3>
   <form onsubmit="return doConvert(this)">
     <div class="field"><label>목적지</label><input name="dest" placeholder="예: 일본 오사카"></div>
     <div class="field-row">
       <div class="field"><label>시작일</label><input name="start" type="date" required></div>
       <div class="field"><label>종료일</label><input name="end" type="date" required></div>
     </div>
-    <div class="set-note" style="padding-top:0">이 마인드맵에 날짜별 Day 가지가 추가되고, 시간·비용·분류가 있는 일정 노드와 일정표 보기를 쓸 수 있게 됩니다. 기존 노드는 그대로 유지돼요.</div>
+    <div class="set-note" style="margin-bottom:4px">이 마인드맵에 날짜별 Day 가지가 추가되고, 시간·비용·분류가 있는 일정 노드와 일정표 보기를 쓸 수 있게 됩니다. 기존 노드는 그대로 유지돼요.</div>
     <div class="sheet-btns">
       <button type="button" class="plain-btn" onclick="closeSheets()">취소</button>
       <button type="submit" class="primary-btn">변환하기</button>
@@ -361,45 +422,14 @@
 
 <!-- 노드 편집 -->
 <div class="sheet" id="editSheet">
-  <div class="sheet-grip"></div>
   <h3 id="editTitle">노드 편집</h3>
   <div class="sheet-body"><form id="editForm"></form></div>
   <div class="sheet-btns" id="editBtns"></div>
 </div>
 
 <!-- 일정표 -->
-<div class="sheet" id="itinSheet" style="height:88%">
-  <div class="sheet-grip"></div>
+<div class="sheet" id="itinSheet" style="width:min(480px, calc(100vw - 36px));">
   <div class="sheet-body" id="itinBody"></div>
-  <div class="sheet-btns"><button class="plain-btn" style="flex:1" onclick="closeSheets()">닫기</button></div>
-</div>
-
-<!-- 설정 -->
-<div class="sheet" id="setSheet">
-  <div class="sheet-grip"></div>
-  <h3>설정</h3>
-  <div class="sheet-body">
-    <div class="field" style="padding:2px 4px 10px; margin-bottom:4px;">
-      <label>테마</label>
-      <div class="seg" id="themeSeg">
-        <button data-t="system">시스템</button>
-        <button data-t="light">라이트</button>
-        <button data-t="dark">다크</button>
-      </div>
-    </div>
-    <button class="set-item" onclick="exportData()">
-      <span class="si-icon" id="icExport"></span>
-      <span>백업하기<span class="si-desc">모든 마인드맵을 JSON 파일로 저장합니다</span></span>
-    </button>
-    <button class="set-item" onclick="importFile.click()">
-      <span class="si-icon" id="icImport"></span>
-      <span>복원하기<span class="si-desc">백업 파일을 불러옵니다 (현재 데이터를 덮어씁니다)</span></span>
-    </button>
-    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
-    <div class="set-note">
-      데이터는 이 기기(브라우저)에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우면 사라질 수 있으니, 중요한 내용은 백업해 두세요.
-    </div>
-  </div>
   <div class="sheet-btns"><button class="plain-btn" style="flex:1" onclick="closeSheets()">닫기</button></div>
 </div>
 
@@ -409,12 +439,7 @@
 const I = {
   plus:'<path d="M12 5v14M5 12h14"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/>',
-  gear:'<circle cx="12" cy="12" r="3.2"/><path d="M19.2 12a7.2 7.2 0 0 0-.1-1.2l2-1.5-2-3.5-2.4 1a7.3 7.3 0 0 0-2-1.2L14.3 3h-4l-.4 2.6a7.3 7.3 0 0 0-2 1.2l-2.4-1-2 3.5 2 1.5a7.2 7.2 0 0 0 0 2.4l-2 1.5 2 3.5 2.4-1a7.3 7.3 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.3 7.3 0 0 0 2-1.2l2.4 1 2-3.5-2-1.5c.06-.4.1-.8.1-1.2Z"/>',
-  folder:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2h7.4A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/>',
-  folderPlus:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2h7.4A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M12 10.5v5M9.5 13h5"/>',
   chev:'<path d="m9 6 6 6-6 6"/>',
-  back:'<path d="m15 6-6 6 6 6"/>',
-  dots:'<circle cx="12" cy="5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="19" r="1" fill="currentColor"/>',
   edit:'<path d="M4.5 19.5h4L19 9a2.1 2.1 0 1 0-3-3L5.5 16.5z"/><path d="m13.5 6.5 3 3"/>',
   trash:'<path d="M4.5 7h15M9.5 11v5.5M14.5 11v5.5M6 7l.8 11a2 2 0 0 0 2 1.9h6.4a2 2 0 0 0 2-1.9L18 7M9.5 7V5.4A1.4 1.4 0 0 1 10.9 4h2.2a1.4 1.4 0 0 1 1.4 1.4V7"/>',
   list:'<path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="17.5" r="1" fill="currentColor"/>',
@@ -422,9 +447,6 @@ const I = {
   send:'<path d="m21.5 2.5-7.2 19-3.6-8.2-8.2-3.6z"/><path d="M21.5 2.5 10.7 13.3"/>',
   fit:'<path d="M8.5 3.5h-3a2 2 0 0 0-2 2v3M15.5 3.5h3a2 2 0 0 1 2 2v3M8.5 20.5h-3a2 2 0 0 1-2-2v-3M15.5 20.5h3a2 2 0 0 0 2-2v-3"/>',
   minus:'<path d="M5 12h14"/>',
-  download:'<path d="M12 3.5v11m0 0 4-4m-4 4-4-4M4.5 20.5h15"/>',
-  upload:'<path d="M12 14.5v-11m0 0 4 4m-4-4-4 4M4.5 20.5h15"/>',
-  network:'<circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="5.5" r="2.4"/><circle cx="17.5" cy="18.5" r="2.4"/><path d="m8.2 10.8 7-4M8.2 13.2l7 4"/>',
   cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
 };
 const ic = (name, size=20, sw=1.8) =>
@@ -432,33 +454,20 @@ const ic = (name, size=20, sw=1.8) =>
 
 /* ════════════════ 공통 ════════════════ */
 const LS_KEY = 'mindtrip-v2';
-const PALETTE = ['#aecbe8','#b8d8b5','#f5d5a0','#f2b8b0','#cfc0ea','#a9dcd6','#f3c1d3','#d6d5cf'];
-const CATS = {
-  move:{label:'이동',emoji:'🚗',fg:'#7ba3c9'},
-  food:{label:'식사',emoji:'🍽️',fg:'#dbab62'},
-  sight:{label:'관광',emoji:'📸',fg:'#87b183'},
-  stay:{label:'숙소',emoji:'🏨',fg:'#a48fd0'},
-  shop:{label:'쇼핑',emoji:'🛍️',fg:'#d98ba9'},
-  etc:{label:'기타',emoji:'📌',fg:'#a3a29b'},
+/* todo 앱 키워드 칩 색상 쌍 */
+const PALETTE = ['#667eea','#d1f2eb','#fef3cd','#fce8e6','#e8daef','#d6eaf8','#fdebd0','#eaecee'];
+const TONES = {
+  '#667eea':'#ffffff', '#d1f2eb':'#1e8449', '#fef3cd':'#856404', '#fce8e6':'#c0392b',
+  '#e8daef':'#76448a', '#d6eaf8':'#1a5276', '#fdebd0':'#935116', '#eaecee':'#566573',
 };
-/* 파스텔 색을 어둡게 (텍스트/점 용) */
-function shade(hex, f){
-  if(!/^#[0-9a-f]{6}$/i.test(hex || '')) return hex || '#8b8b87';
-  const v = parseInt(hex.slice(1), 16);
-  const r = Math.round(((v>>16)&255)*f), g = Math.round(((v>>8)&255)*f), b = Math.round((v&255)*f);
-  return `rgb(${r},${g},${b})`;
-}
-/* 이전 버전 팔레트 → 파스텔 마이그레이션 */
-const OLD_COLORS = (() => {
-  const olds = [
-    ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#64748b'],
-    ['#5b5bd6','#10b981','#f59e0b','#e5484d','#8b5cf6','#0ea5e9','#ec4899','#64748b'],
-    ['#6c8ead','#6e8b6a','#b0885a','#b3564f','#8d7ba6','#5e9b94','#b07a8c','#8b8b87'],
-  ];
-  const m = {};
-  olds.forEach(p => p.forEach((c,i) => m[c] = PALETTE[i]));
-  return m;
-})();
+const CATS = {
+  move:{label:'이동',emoji:'🚗',fg:'#1a5276'},
+  food:{label:'식사',emoji:'🍽️',fg:'#935116'},
+  sight:{label:'관광',emoji:'📸',fg:'#1e8449'},
+  stay:{label:'숙소',emoji:'🏨',fg:'#76448a'},
+  shop:{label:'쇼핑',emoji:'🛍️',fg:'#c0392b'},
+  etc:{label:'기타',emoji:'📌',fg:'#566573'},
+};
 const DAY_NAMES = ['일','월','화','수','목','금','토'];
 const uid = () => Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -470,13 +479,39 @@ function fmtShort(ds){
   return `${d.getMonth()+1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
 }
 const fmtWon = n => Number(n||0).toLocaleString('ko-KR') + '원';
+
+function shade(hex, f){
+  if(!/^#[0-9a-f]{6}$/i.test(hex || '')) return hex || '#566573';
+  const v = parseInt(hex.slice(1), 16);
+  const r = Math.round(((v>>16)&255)*f), g = Math.round(((v>>8)&255)*f), b = Math.round((v&255)*f);
+  return `rgb(${r},${g},${b})`;
+}
+/* 노드 배경색 → 글자색 */
+const tone = c => TONES[c] || shade(c, .5);
+/* 선택 테두리용 (primary는 어두운 파랑) */
+const strokeTone = c => c === '#667eea' ? '#4353c9' : tone(c);
+
+/* 이전 버전 팔레트 → 현재 팔레트 마이그레이션 */
+const OLD_COLORS = (() => {
+  const olds = [
+    ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#64748b'],
+    ['#5b5bd6','#10b981','#f59e0b','#e5484d','#8b5cf6','#0ea5e9','#ec4899','#64748b'],
+    ['#6c8ead','#6e8b6a','#b0885a','#b3564f','#8d7ba6','#5e9b94','#b07a8c','#8b8b87'],
+    ['#aecbe8','#b8d8b5','#f5d5a0','#f2b8b0','#cfc0ea','#a9dcd6','#f3c1d3','#d6d5cf'],
+  ];
+  const m = {};
+  olds.forEach(p => p.forEach((c,i) => m[c] = PALETTE[i]));
+  return m;
+})();
+
 const themeC = () => {
   const s = getComputedStyle(document.body);
   return {
     panel: s.getPropertyValue('--panel').trim(),
     text: s.getPropertyValue('--text').trim(),
-    line: s.getPropertyValue('--line').trim(),
+    line: s.getPropertyValue('--line2').trim(),
     sub: s.getPropertyValue('--sub').trim(),
+    body: s.getPropertyValue('--body').trim(),
   };
 };
 
@@ -513,7 +548,7 @@ function applyTheme(){
   document.documentElement.setAttribute('data-theme', t);
   const dark = t === 'dark' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
   const meta = document.getElementById('metaTheme');
-  if(meta) meta.setAttribute('content', dark ? '#171613' : '#eae7e1');
+  if(meta) meta.setAttribute('content', dark ? '#14151a' : '#f0f2f5');
   const seg = document.getElementById('themeSeg');
   if(seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   if(curMap()) renderMap();
@@ -647,9 +682,9 @@ function mapCard(m, showPath){
     : `노드 ${cnt}개`;
   const path = showPath && m.topicId ? `${esc(topicPath(m.topicId))} · ` : '';
   return `<div class="map-card" data-mapid="${m.id}">
-    <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${ic(m.kind==='trip'?'send':'network', 20)}</div>
+    <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
     <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${path}${sub}</div></div>
-    <button class="mc-btn" data-act="settings">${ic('dots',18)}</button>
+    <button class="mc-btn" data-act="settings">⋯</button>
   </div>`;
 }
 function renderHome(){
@@ -664,11 +699,11 @@ function renderHome(){
     );
     html = `<div class="topic-row" style="cursor:default"><span class="topic-name">검색 결과</span><span class="topic-cnt">${hits.length}</span></div>`;
     html += hits.length ? hits.map(m => mapCard(m, true)).join('')
-      : '<div class="home-empty" style="padding:36px">검색 결과가 없어요</div>';
+      : '<div class="home-empty">검색 결과가 없어요</div>';
   }else if(!state.maps.length && !state.topics.length){
     html = `<div class="home-empty">
-      <span class="e-icon">${ic('network', 32)}</span>
-      아직 마인드맵이 없어요.<br>오른쪽 아래 버튼으로 첫 마인드맵을 만들어 보세요.<br>
+      <span class="e-icon">🗺️</span>
+      아직 마인드맵이 없어요.<br>위 <b>＋ 새 마인드맵</b> 버튼으로 시작해 보세요.<br>
       <span style="font-size:12px">중심 주제 설정에서 여행계획으로 변환할 수 있어요</span></div>`;
   }else{
     const renderTopicTree = (t) => {
@@ -676,13 +711,13 @@ function renderHome(){
       const maps = mapsIn(t.id);
       const cnt = countMapsDeep(t.id);
       let h = `<div class="topic-row" data-topic="${t.id}">
-        <span class="topic-caret ${t.open?'open':''}">${ic('chev',15,2.2)}</span>
-        <span class="topic-ficon">${ic('folder',21)}</span>
+        <span class="topic-caret ${t.open?'open':''}">${ic('chev',14,2.2)}</span>
+        <span class="topic-ficon">📁</span>
         <span class="topic-name">${esc(t.name)}</span><span class="topic-cnt">${cnt}</span>
         <span class="topic-btns">
-          <button data-tact="add" title="하위 주제">${ic('plus',16,2)}</button>
-          <button data-tact="rename" title="이름 변경">${ic('edit',15)}</button>
-          <button data-tact="del" title="삭제">${ic('trash',15)}</button>
+          <button data-tact="add" title="하위 주제">${ic('plus',15,2)}</button>
+          <button data-tact="rename" title="이름 변경">${ic('edit',14)}</button>
+          <button data-tact="del" title="삭제">${ic('trash',14)}</button>
         </span>
       </div>`;
       if(t.open){
@@ -698,7 +733,7 @@ function renderHome(){
       html += loose.map(m => mapCard(m)).join('');
     }
   }
-  if(!storageOK) html += `<div class="home-empty" style="padding:14px;color:var(--danger)">이 브라우저에서는 자동 저장이 안 됩니다. 설정에서 백업을 활용하세요.</div>`;
+  if(!storageOK) html += `<div class="home-empty" style="padding:14px;color:var(--red)">이 브라우저에서는 자동 저장이 안 됩니다. 설정에서 백업을 활용하세요.</div>`;
   box.innerHTML = html;
 
   box.querySelectorAll('.topic-row[data-topic]').forEach(el => {
@@ -807,7 +842,7 @@ const mctx = document.createElement('canvas').getContext('2d');
 
 function nodeSize(map, n){
   const isRoot = n.type === 'root';
-  mctx.font = (isRoot ? '600 15px ' : '500 13.5px ') + 'Pretendard Variable, -apple-system, Segoe UI, sans-serif';
+  mctx.font = (isRoot ? '700 15px ' : '600 13.5px ') + '-apple-system, Segoe UI, sans-serif';
   const tw = mctx.measureText(nodeLabel(map, n)).width;
   const pad = (n.type === 'item' || n.type === 'idea') ? 48 : 36;
   const w = Math.max(isRoot ? 110 : 78, tw + pad);
@@ -847,44 +882,39 @@ function renderMap(){
     const rect = document.createElementNS(SVGNS,'rect');
     rect.setAttribute('x',-w/2); rect.setAttribute('y',-h/2);
     rect.setAttribute('width',w); rect.setAttribute('height',h);
-    rect.setAttribute('rx', isRoot ? 15 : 12);
-    if(isRoot){
+    rect.setAttribute('rx', isRoot ? 14 : 11);
+    if(isRoot || n.type === 'day'){
       rect.setAttribute('fill', n.color);
-      rect.setAttribute('stroke', n.id === sel ? shade(n.color, .5) : 'none');
+      rect.setAttribute('stroke', n.id === sel ? strokeTone(n.color) : 'none');
       rect.setAttribute('stroke-width', n.id === sel ? 2.5 : 0);
-    }else if(n.type === 'day'){
-      rect.setAttribute('fill', n.color);
-      rect.setAttribute('stroke', n.id === sel ? shade(n.color, .55) : 'none');
-      rect.setAttribute('stroke-width', n.id === sel ? 2 : 0);
     }else{
       rect.setAttribute('fill', C.panel);
-      rect.setAttribute('stroke', n.id === sel ? shade(n.color, .65) : C.line);
+      rect.setAttribute('stroke', n.id === sel ? strokeTone(n.color) : C.line);
       rect.setAttribute('stroke-width', n.id === sel ? 2 : 1.5);
     }
     if(n.id === sel) rect.setAttribute('filter','drop-shadow(0 4px 10px rgba(0,0,0,.22))');
     g.appendChild(rect);
 
-    // 항목/아이디어 노드: 색상 점 표시
     if(n.type === 'item' || n.type === 'idea'){
       const dot = document.createElementNS(SVGNS,'circle');
       dot.setAttribute('cx', -w/2 + 16);
       dot.setAttribute('cy', 0);
       dot.setAttribute('r', 3.6);
-      dot.setAttribute('fill', n.type === 'item' ? (CATS[n.meta.cat]||CATS.etc).fg : shade(n.color, .78));
+      dot.setAttribute('fill', n.type === 'item' ? (CATS[n.meta.cat]||CATS.etc).fg : strokeTone(n.color));
       g.appendChild(dot);
     }
 
     const text = document.createElementNS(SVGNS,'text');
     text.setAttribute('font-size', isRoot ? 15 : 13.5);
-    text.setAttribute('font-weight', isRoot ? 600 : 500);
+    text.setAttribute('font-weight', isRoot ? 700 : 600);
     text.setAttribute('dominant-baseline','central');
     if(n.type === 'item' || n.type === 'idea'){
       text.setAttribute('text-anchor','start');
       text.setAttribute('x', -w/2 + 28);
-      text.setAttribute('fill', C.text);
+      text.setAttribute('fill', C.body);
     }else{
       text.setAttribute('text-anchor','middle');
-      text.setAttribute('fill', shade(n.color, isRoot ? .42 : .48));
+      text.setAttribute('fill', tone(n.color));
     }
     let label = nodeLabel(map, n);
     if(label.length > 38) label = label.slice(0,37) + '…';
@@ -1138,7 +1168,7 @@ function autoLayout(){
   save(); renderMap(); zoomFit();
 }
 
-/* ════════════════ 노드 편집 시트 ════════════════ */
+/* ════════════════ 노드 편집 모달 ════════════════ */
 let editId = null;
 function openEdit(id){
   const map = curMap(); const n = map && map.nodes[id]; if(!n) return;
@@ -1148,12 +1178,12 @@ function openEdit(id){
   const c = n.meta || {};
   let html = '';
   if(n.type === 'day'){
-    title.textContent = `Day ${dayIndexOf(map,n) || '?'} 편집`;
+    title.textContent = `📅 Day ${dayIndexOf(map,n) || '?'} 편집`;
     html = `
       <div class="field"><label>날짜</label><input name="date" type="date" value="${esc(c.date||'')}"></div>
       <div class="field"><label>메모 (예: 테마, 지역)</label><input name="text" value="${esc(n.text)}" placeholder="예: 시내 관광 날"></div>`;
   }else if(n.type === 'item'){
-    title.textContent = '일정 편집';
+    title.textContent = '📍 일정 편집';
     html = `
       <div class="field"><label>일정 내용</label><input name="text" value="${esc(n.text)}" required></div>
       <div class="field-row">
@@ -1165,14 +1195,14 @@ function openEdit(id){
       <div class="field"><label>비용 (원)</label><input name="cost" type="number" inputmode="numeric" min="0" step="100" value="${c.cost||''}" placeholder="0"></div>
       <div class="field"><label>메모</label><textarea name="memo" rows="2" placeholder="예약번호, 팁 등">${esc(c.memo||'')}</textarea></div>`;
   }else if(n.type === 'root' && map.kind === 'trip'){
-    title.textContent = '여행 정보';
+    title.textContent = '✈️ 여행 정보';
     html = `
       <div class="field"><label>여행 이름</label><input name="text" value="${esc(n.text)}" required></div>
       <div class="field"><label>목적지</label><input name="dest" value="${esc(map.dest||'')}"></div>`;
   }else if(n.type === 'root'){
-    title.textContent = '주제 설정';
+    title.textContent = '💡 주제 설정';
     html = `
-      <button type="button" class="convert-btn" id="btnConvert">${ic('send',17)}여행계획으로 변환</button>
+      <button type="button" class="convert-btn" id="btnConvert">✈️ 여행계획으로 변환</button>
       <div class="field"><label>중심 주제</label><input name="text" value="${esc(n.text)}" required></div>`;
   }else{
     title.textContent = '노드 편집';
@@ -1193,7 +1223,7 @@ function openEdit(id){
   });
   const btns = document.getElementById('editBtns');
   btns.innerHTML = `
-    ${n.type !== 'root' ? `<button type="button" class="danger-btn" id="editDel">${ic('trash',18)}</button>` : ''}
+    ${n.type !== 'root' ? `<button type="button" class="danger-btn" id="editDel">${ic('trash',17)}</button>` : ''}
     <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
     <button type="button" class="primary-btn" id="editSave">저장</button>`;
   const delBtn = document.getElementById('editDel');
@@ -1238,7 +1268,7 @@ function openItin(){
   const days = childrenOf(map, map.rootId).filter(n => n.type === 'day');
   const total = tripTotal(map);
   let html = `<div class="itin-head">
-    <h3 style="margin-bottom:0">${esc(map.name)}</h3>
+    <h3>🗓️ ${esc(map.name)}</h3>
     <div class="ih-meta">${map.dest ? esc(map.dest)+' · ' : ''}${fmtShort(map.start)} ~ ${fmtShort(map.end)} · ${days.length}일</div>
     <div class="itin-total"><span>총 예상 경비</span><span>${fmtWon(total)}</span></div>
   </div>`;
@@ -1247,22 +1277,22 @@ function openItin(){
     const daySum = items.reduce((s,n) => s + (Number(n.meta.cost)||0), 0);
     html += `<div class="itin-day">
       <div class="itin-day-head">
-        <span style="color:${shade(d.color, .55)}">Day ${i+1}</span>
-        <span style="font-weight:500;font-size:13px;color:var(--sub)">${fmtShort(d.meta.date)}${d.text ? ' · '+esc(d.text) : ''}</span>
+        <span style="color:${strokeTone(d.color)}">Day ${i+1}</span>
+        <span style="font-weight:500;font-size:12.5px;color:var(--sub)">${fmtShort(d.meta.date)}${d.text ? ' · '+esc(d.text) : ''}</span>
         <span class="id-sum">${daySum ? fmtWon(daySum) : ''}</span>
       </div>
       ${items.length ? items.map(it => {
         const c = CATS[it.meta.cat] || CATS.etc;
         return `<div class="itin-item" data-id="${it.id}">
-          <div class="ii-time">${it.meta.time ? esc(it.meta.time) : '—'}</div>
+          <div class="ii-time ${it.meta.time ? '' : 'no-time'}">${it.meta.time ? esc(it.meta.time) : '—'}</div>
           <div class="ii-main">
             <div class="ii-title">${esc(it.text)}<span class="cat-badge"><i style="background:${c.fg}"></i>${c.label}</span></div>
             ${it.meta.memo ? `<div class="ii-memo">${esc(it.meta.memo)}</div>` : ''}
-            ${it.meta.cost ? `<div class="ii-cost">${fmtWon(it.meta.cost)}</div>` : ''}
+            ${it.meta.cost ? `<div class="ii-cost">💰 ${fmtWon(it.meta.cost)}</div>` : ''}
           </div>
         </div>`;
       }).join('') : '<div class="itin-empty">일정이 없어요</div>'}
-      <button class="itin-add" data-day="${d.id}">${ic('plus',15)}이 날에 일정 추가</button>
+      <button class="itin-add" data-day="${d.id}">＋ 이 날에 일정 추가</button>
     </div>`;
   });
   body.innerHTML = html;
@@ -1273,7 +1303,7 @@ function openItin(){
   openSheet('itinSheet');
 }
 
-/* ════════════════ 시트 열기/닫기 ════════════════ */
+/* ════════════════ 모달 열기/닫기 ════════════════ */
 function openSheet(id){
   closeSheets();
   document.getElementById('backdrop').classList.add('show');
@@ -1300,7 +1330,7 @@ function importData(input){
     try{
       const d = JSON.parse(r.result);
       if(!Array.isArray(d.maps)) throw 0;
-      state = normalize(d); save(); closeSheets(); renderHome();
+      state = normalize(d); save(); applyTheme(); renderHome();
       alert('복원 완료!');
     }catch(e){ alert('올바른 백업 파일이 아닙니다.'); }
     input.value = '';
@@ -1329,19 +1359,17 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
 /* ════════════════ 시작 ════════════════ */
 (function boot(){
   const set = (id, name, size) => { const el = document.getElementById(id); if(el) el.innerHTML = ic(name, size); };
-  set('btnSettings','gear',21);
-  set('searchIc','search',17);
-  set('btnNewMap','plus',26);
-  set('btnBack','back',21);
-  set('btnLayout','layout',19);
-  set('btnItin','list',20);
-  set('btnZoomIn','plus',18);
-  set('btnZoomFit','fit',17);
-  set('btnZoomOut','minus',18);
-  set('mapSetDel','trash',18);
-  set('icExport','download',19);
-  set('icImport','upload',19);
-  document.getElementById('btnAddTopic').innerHTML = ic('folderPlus',17) + '<span>주제</span>';
+  set('searchIc','search',16);
+  set('btnLayout','layout',17);
+  set('btnItin','list',18);
+  set('btnZoomIn','plus',17);
+  set('btnZoomFit','fit',16);
+  set('btnZoomOut','minus',17);
+  document.querySelectorAll('.bottom-nav .nav-item').forEach(b =>
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.bottom-nav .nav-item').forEach(x => x.classList.toggle('active', x === b));
+      document.querySelectorAll('#scrHome .view').forEach(v => v.classList.toggle('active', v.id === b.dataset.view));
+    }));
   document.getElementById('themeSeg').querySelectorAll('button').forEach(b =>
     b.addEventListener('click', () => { state.theme = b.dataset.t; save(); applyTheme(); }));
   applyTheme();
