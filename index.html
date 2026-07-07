@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>MindTrip</title>
+<meta name="theme-color" content="#6366f1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MindTrip">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root{
+    --bg:#f4f6fb; --panel:#ffffff; --line:#e4e8f1; --text:#1e2433; --sub:#697386;
+    --accent:#6366f1; --accent-soft:#eef0ff; --danger:#ef4444;
+    --shadow:0 2px 12px rgba(30,36,51,.10);
+    --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overscroll-behavior:none;}
+  body{
+    font-family:-apple-system,'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+    background:var(--bg); color:var(--text); overflow:hidden; position:fixed; inset:0;
+    user-select:none; -webkit-user-select:none;
+  }
+  button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; font-size:14px;}
+  input,select,textarea{
+    font-family:inherit; font-size:16px; border:1.5px solid var(--line); border-radius:11px;
+    padding:11px 13px; background:#fff; color:var(--text); outline:none; width:100%;
+    -webkit-user-select:text; user-select:text;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+
+  .screen{position:absolute; inset:0; display:none; flex-direction:column;}
+  .screen.active{display:flex;}
+
+  /* ═══ 홈 화면 ═══ */
+  .home-head{
+    padding:calc(14px + var(--sat)) 20px 12px; display:flex; align-items:center; gap:10px;
+    background:var(--panel); border-bottom:1px solid var(--line);
+  }
+  .logo{font-size:19px; font-weight:800; letter-spacing:-.3px;}
+  .logo span{color:var(--accent);}
+  .home-head .spacer{flex:1;}
+  .ghost-btn{
+    font-size:12.5px; color:var(--sub); padding:8px 12px; border-radius:9px;
+    border:1px solid var(--line); background:#fff; font-weight:600;
+  }
+  .home-body{flex:1; overflow-y:auto; padding:16px 16px calc(110px + var(--sab)); -webkit-overflow-scrolling:touch;}
+  .section-label{font-size:12px; font-weight:700; color:var(--sub); margin:14px 6px 8px; letter-spacing:.4px;}
+  .map-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
+    padding:15px 16px; margin-bottom:10px; display:flex; align-items:center; gap:13px; cursor:pointer;
+  }
+  .map-card:active{transform:scale(.985);}
+  .mc-icon{
+    width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center;
+    font-size:22px; flex:0 0 44px;
+  }
+  .mc-icon.trip{background:#eef0ff;}
+  .mc-icon.idea{background:#dcfce7;}
+  .mc-main{flex:1; min-width:0;}
+  .mc-title{font-size:15.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mc-sub{font-size:12px; color:var(--sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mc-btn{padding:8px; font-size:15px; color:var(--sub); border-radius:8px; flex:0 0 auto;}
+  .home-empty{text-align:center; color:var(--sub); padding:56px 20px; font-size:14px; line-height:1.8;}
+  .home-empty .e-icon{font-size:46px; display:block; margin-bottom:10px;}
+  .fab-row{
+    position:absolute; left:0; right:0; bottom:0; display:flex; gap:10px;
+    padding:12px 16px calc(14px + var(--sab)); background:linear-gradient(transparent, var(--bg) 40%);
+  }
+  .fab{
+    flex:1; padding:15px; border-radius:15px; font-size:15px; font-weight:700; color:#fff;
+    box-shadow:0 4px 14px rgba(99,102,241,.35);
+  }
+  .fab.trip{background:var(--accent);}
+  .fab.idea{background:#10b981; box-shadow:0 4px 14px rgba(16,185,129,.35);}
+  .fab:active{transform:scale(.97);}
+
+  /* ═══ 맵 화면 ═══ */
+  .top-bar{
+    padding:calc(9px + var(--sat)) 10px 9px; display:flex; align-items:center; gap:6px;
+    background:var(--panel); border-bottom:1px solid var(--line); z-index:10;
+  }
+  .tb-btn{padding:9px 11px; border-radius:10px; font-size:17px; line-height:1;}
+  .tb-btn:active{background:var(--bg);}
+  .tb-title{flex:1; font-size:15.5px; font-weight:700; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .tb-action{
+    padding:8px 12px; border-radius:10px; font-size:12.5px; font-weight:700; color:var(--accent);
+    background:var(--accent-soft);
+  }
+  #canvasWrap{
+    flex:1; position:relative; overflow:hidden; touch-action:none;
+    background-image:radial-gradient(circle, #d9deea 1px, transparent 1px); background-size:24px 24px;
+  }
+  #mmSvg{width:100%; height:100%; display:block; touch-action:none;}
+  .mm-node{cursor:pointer;}
+  .zoom-ctl{
+    position:absolute; bottom:14px; right:12px; display:flex; flex-direction:column; gap:4px; z-index:5;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:4px; box-shadow:var(--shadow);
+  }
+  .zoom-ctl button{width:38px; height:38px; border-radius:9px; font-size:17px; font-weight:700; color:var(--sub);}
+  .zoom-ctl button:active{background:var(--bg);}
+  .mm-hint{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:5;
+    font-size:11.5px; color:var(--sub); background:rgba(255,255,255,.92); border:1px solid var(--line);
+    padding:7px 14px; border-radius:20px; pointer-events:none; white-space:nowrap; transition:opacity .4s;
+  }
+  .sel-bar{
+    display:none; gap:6px; padding:10px 12px calc(12px + var(--sab)); background:var(--panel);
+    border-top:1px solid var(--line); overflow-x:auto; -webkit-overflow-scrolling:touch; z-index:10;
+  }
+  .sel-bar.show{display:flex;}
+  .sel-bar button{
+    flex:0 0 auto; padding:11px 15px; border-radius:12px; font-size:13.5px; font-weight:700;
+    background:var(--bg); white-space:nowrap;
+  }
+  .sel-bar button:active{background:var(--accent-soft);}
+  .sel-bar button.danger{color:var(--danger); background:#fef2f2;}
+
+  /* ═══ 바텀 시트 ═══ */
+  .backdrop{
+    position:absolute; inset:0; background:rgba(30,36,51,.42); z-index:40; display:none;
+  }
+  .backdrop.show{display:block;}
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0; z-index:50; background:var(--panel);
+    border-radius:22px 22px 0 0; box-shadow:0 -6px 30px rgba(30,36,51,.18);
+    padding:10px 20px calc(20px + var(--sab)); display:none; max-height:88%;
+    flex-direction:column;
+  }
+  .sheet.show{display:flex;}
+  .sheet-grip{width:40px; height:4px; border-radius:4px; background:#d5dae6; margin:2px auto 12px; flex:0 0 auto;}
+  .sheet h3{font-size:16.5px; font-weight:800; margin-bottom:14px; flex:0 0 auto;}
+  .sheet-body{overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1;}
+  .field{margin-bottom:11px;}
+  .field label{display:block; font-size:12px; font-weight:700; color:var(--sub); margin-bottom:5px;}
+  .field-row{display:flex; gap:8px;}
+  .field-row .field{flex:1;}
+  .sheet-btns{display:flex; gap:8px; margin-top:6px; flex:0 0 auto;}
+  .primary-btn{
+    flex:1; background:var(--accent); color:#fff; font-size:15px; font-weight:700;
+    padding:14px; border-radius:13px;
+  }
+  .primary-btn:active{filter:brightness(1.12);}
+  .danger-btn{background:#fef2f2; color:var(--danger); font-weight:700; padding:14px 18px; border-radius:13px;}
+  .plain-btn{background:var(--bg); font-weight:700; padding:14px 18px; border-radius:13px;}
+  .color-row{display:flex; gap:9px; flex-wrap:wrap; padding:2px 0;}
+  .color-dot{width:34px; height:34px; border-radius:50%; border:3px solid transparent;}
+  .color-dot.on{border-color:var(--text);}
+
+  /* ═══ 일정표 시트 ═══ */
+  .itin-head{margin-bottom:10px; flex:0 0 auto;}
+  .itin-head .ih-meta{font-size:12.5px; color:var(--sub); margin-top:4px;}
+  .itin-total{
+    background:var(--accent-soft); color:var(--accent); font-weight:800; font-size:14px;
+    padding:11px 15px; border-radius:12px; margin:8px 0 4px; display:flex; justify-content:space-between;
+  }
+  .itin-day{margin-top:16px;}
+  .itin-day-head{
+    display:flex; align-items:baseline; gap:8px; font-size:14.5px; font-weight:800; margin-bottom:8px;
+  }
+  .itin-day-head .id-sum{margin-left:auto; font-size:12px; color:var(--sub); font-weight:600;}
+  .itin-item{
+    display:flex; gap:11px; padding:11px 13px; border:1px solid var(--line); border-radius:13px;
+    margin-bottom:7px; background:#fff; align-items:flex-start;
+  }
+  .itin-item:active{background:var(--accent-soft);}
+  .ii-time{flex:0 0 46px; font-size:13px; font-weight:800; color:var(--accent); padding-top:2px;}
+  .ii-main{flex:1; min-width:0;}
+  .ii-title{font-size:14.5px; font-weight:600;}
+  .ii-memo{font-size:12.5px; color:var(--sub); margin-top:3px; white-space:pre-wrap; line-height:1.5;}
+  .ii-cost{font-size:12px; color:var(--sub); font-weight:700; margin-top:3px;}
+  .cat-badge{font-size:10.5px; font-weight:800; padding:2.5px 9px; border-radius:20px; margin-right:6px;}
+  .itin-add{
+    width:100%; padding:11px; border:1.5px dashed #c7cede; border-radius:13px; color:var(--sub);
+    font-size:13px; font-weight:700; margin-top:2px;
+  }
+  .itin-empty{font-size:13px; color:var(--sub); padding:8px 4px 2px;}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ 홈 ═══════════ -->
+<div class="screen" id="scrHome">
+  <div class="home-head">
+    <div class="logo">🗺️ Mind<span>Trip</span></div>
+    <div class="spacer"></div>
+    <button class="ghost-btn" onclick="exportData()">백업</button>
+    <button class="ghost-btn" onclick="importFile.click()">복원</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+  </div>
+  <div class="home-body" id="homeBody"></div>
+  <div class="fab-row">
+    <button class="fab idea" onclick="openSheet('ideaSheet')">🧠 생각 정리</button>
+    <button class="fab trip" onclick="openSheet('tripSheet')">✈️ 여행 계획</button>
+  </div>
+</div>
+
+<!-- ═══════════ 맵 캔버스 ═══════════ -->
+<div class="screen" id="scrMap">
+  <div class="top-bar">
+    <button class="tb-btn" onclick="goHome()">←</button>
+    <div class="tb-title" id="tbTitle"></div>
+    <button class="tb-action" id="btnLayout" onclick="autoLayout()">🧹 정돈</button>
+    <button class="tb-action" id="btnItin" onclick="openItin()">🗒 일정표</button>
+  </div>
+  <div id="canvasWrap">
+    <svg id="mmSvg"><g id="world"></g></svg>
+    <div class="mm-hint" id="mmHint">노드 탭: 선택 · 두 번 탭: 편집 · 두 손가락: 확대/축소</div>
+    <div class="zoom-ctl">
+      <button onclick="zoomBy(1.25)">＋</button>
+      <button onclick="zoomFit()" style="font-size:13px">⤢</button>
+      <button onclick="zoomBy(0.8)">－</button>
+    </div>
+  </div>
+  <div class="sel-bar" id="selBar"></div>
+</div>
+
+<!-- ═══════════ 시트 & 백드롭 ═══════════ -->
+<div class="backdrop" id="backdrop" onclick="closeSheets()"></div>
+
+<div class="sheet" id="ideaSheet">
+  <div class="sheet-grip"></div>
+  <h3>🧠 새 생각 정리 맵</h3>
+  <form onsubmit="return createIdeaMap(this)">
+    <div class="field"><label>이름</label><input name="name" placeholder="예: 이직 고민, 아이디어 모음" required></div>
+    <div class="sheet-btns">
+      <button type="button" class="plain-btn" onclick="closeSheets()">취소</button>
+      <button type="submit" class="primary-btn">만들기</button>
+    </div>
+  </form>
+</div>
+
+<div class="sheet" id="tripSheet">
+  <div class="sheet-grip"></div>
+  <h3>✈️ 새 여행 계획</h3>
+  <form onsubmit="return createTripMap(this)">
+    <div class="field"><label>여행 이름</label><input name="name" placeholder="예: 오사카 3박 4일" required></div>
+    <div class="field"><label>목적지</label><input name="dest" placeholder="예: 일본 오사카"></div>
+    <div class="field-row">
+      <div class="field"><label>시작일</label><input name="start" type="date" required></div>
+      <div class="field"><label>종료일</label><input name="end" type="date" required></div>
+    </div>
+    <div class="sheet-btns">
+      <button type="button" class="plain-btn" onclick="closeSheets()">취소</button>
+      <button type="submit" class="primary-btn">여행 맵 만들기</button>
+    </div>
+  </form>
+</div>
+
+<div class="sheet" id="editSheet">
+  <div class="sheet-grip"></div>
+  <h3 id="editTitle">노드 편집</h3>
+  <div class="sheet-body"><form id="editForm"></form></div>
+  <div class="sheet-btns" id="editBtns"></div>
+</div>
+
+<div class="sheet" id="itinSheet" style="height:88%">
+  <div class="sheet-grip"></div>
+  <div class="sheet-body" id="itinBody"></div>
+  <div class="sheet-btns"><button class="plain-btn" style="flex:1" onclick="closeSheets()">닫기</button></div>
+</div>
+
+<script>
+'use strict';
+/* ════════════════ 공통 ════════════════ */
+const LS_KEY = 'mindtrip-v2';
+const PALETTE = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#64748b'];
+const CATS = {
+  move:{label:'이동',emoji:'🚗',bg:'#e0f2fe',fg:'#0369a1'},
+  food:{label:'식사',emoji:'🍽️',bg:'#ffedd5',fg:'#c2410c'},
+  sight:{label:'관광',emoji:'📸',bg:'#dcfce7',fg:'#15803d'},
+  stay:{label:'숙소',emoji:'🏨',bg:'#ede9fe',fg:'#6d28d9'},
+  shop:{label:'쇼핑',emoji:'🛍️',bg:'#fce7f3',fg:'#be185d'},
+  etc:{label:'기타',emoji:'📌',bg:'#f1f5f9',fg:'#475569'},
+};
+const DAY_NAMES = ['일','월','화','수','목','금','토'];
+const uid = () => Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toYMD = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function fmtShort(ds){
+  if(!ds) return '';
+  const d = new Date(ds + 'T00:00:00');
+  if(isNaN(d)) return ds;
+  return `${d.getMonth()+1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
+}
+const fmtWon = n => Number(n||0).toLocaleString('ko-KR') + '원';
+
+let storageOK = true;
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  catch(e){ storageOK = false; }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ storageOK = false; }
+  return null;
+}
+
+/* 노드: {id, parentId, text, type:'root'|'day'|'item'|'idea', color, x, y, meta:{date,time,cat,cost,memo}} */
+let state = load() || seedState();
+let curMapId = null;
+let sel = null;
+
+function seedState(){
+  const today = new Date();
+  const d1 = toYMD(today);
+  const t2 = new Date(today); t2.setDate(t2.getDate()+1);
+  const d2 = toYMD(t2);
+  const rid = uid(), day1 = uid(), day2 = uid(), i1 = uid(), i2 = uid(), i3 = uid();
+  const trip = {
+    id: uid(), kind:'trip', name:'예시: 서울 여행', dest:'서울', start:d1, end:d2,
+    cam:{x:0,y:0,z:1}, rootId:rid,
+    nodes:{
+      [rid]:{id:rid,parentId:null,type:'root',text:'예시: 서울 여행',color:PALETTE[0],x:0,y:0,meta:{}},
+      [day1]:{id:day1,parentId:rid,type:'day',text:'',color:PALETTE[1],x:260,y:-80,meta:{date:d1}},
+      [day2]:{id:day2,parentId:rid,type:'day',text:'',color:PALETTE[2],x:260,y:80,meta:{date:d2}},
+      [i1]:{id:i1,parentId:day1,type:'item',text:'경복궁 구경',color:PALETTE[1],x:540,y:-120,meta:{time:'10:00',cat:'sight',cost:3000,memo:'한복 입으면 무료'}},
+      [i2]:{id:i2,parentId:day1,type:'item',text:'광장시장 점심',color:PALETTE[1],x:540,y:-50,meta:{time:'12:30',cat:'food',cost:15000,memo:''}},
+      [i3]:{id:i3,parentId:day2,type:'item',text:'남산타워',color:PALETTE[2],x:540,y:80,meta:{time:'11:00',cat:'sight',cost:16000,memo:''}},
+    }
+  };
+  return {maps:[trip]};
+}
+
+const curMap = () => state.maps.find(m => m.id === curMapId) || null;
+function childrenOf(map, id){
+  let ch = Object.values(map.nodes).filter(n => n.parentId === id);
+  if(ch.length && ch.every(c => c.type === 'day'))
+    ch.sort((a,b) => (a.meta.date||'').localeCompare(b.meta.date||''));
+  else if(ch.length && ch.every(c => c.type === 'item'))
+    ch.sort((a,b) => (a.meta.time||'99:99').localeCompare(b.meta.time||'99:99'));
+  return ch;
+}
+function dayIndexOf(map, n){
+  const days = childrenOf(map, map.rootId).filter(x => x.type === 'day');
+  return days.findIndex(d => d.id === n.id) + 1;
+}
+function nodeLabel(map, n){
+  if(n.type === 'day'){
+    const i = dayIndexOf(map, n);
+    return `Day ${i > 0 ? i : '?'} · ${fmtShort(n.meta.date)}${n.text ? ' ' + n.text : ''}`;
+  }
+  if(n.type === 'item'){
+    const c = CATS[n.meta.cat] || CATS.etc;
+    return `${n.meta.time ? n.meta.time + ' ' : ''}${c.emoji} ${n.text}`;
+  }
+  return n.text || ' ';
+}
+
+/* ════════════════ 화면 전환 ════════════════ */
+function show(scr){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(scr).classList.add('active');
+}
+function goHome(){ curMapId = null; sel = null; closeSheets(); renderHome(); show('scrHome'); }
+function openMap(id){
+  curMapId = id; sel = null;
+  show('scrMap');
+  const map = curMap();
+  document.getElementById('tbTitle').textContent = map.name;
+  document.getElementById('btnItin').style.display = map.kind === 'trip' ? '' : 'none';
+  renderMap(); renderSelBar();
+  requestAnimationFrame(() => zoomFit());
+  const hint = document.getElementById('mmHint');
+  hint.style.opacity = '1';
+  setTimeout(() => hint.style.opacity = '0', 5000);
+}
+
+/* ════════════════ 홈 렌더 ════════════════ */
+function renderHome(){
+  const box = document.getElementById('homeBody');
+  const trips = state.maps.filter(m => m.kind === 'trip');
+  const ideas = state.maps.filter(m => m.kind !== 'trip');
+  if(!state.maps.length){
+    box.innerHTML = `<div class="home-empty"><span class="e-icon">🗺️</span>
+      아직 맵이 없어요.<br>아래 버튼으로 <b>생각 정리</b>나 <b>여행 계획</b>을 시작해 보세요!</div>`;
+    return;
+  }
+  const card = m => {
+    const cnt = Object.keys(m.nodes).length - 1;
+    const sub = m.kind === 'trip'
+      ? `${m.dest ? esc(m.dest) + ' · ' : ''}${fmtShort(m.start)} ~ ${fmtShort(m.end)} · 총 ${fmtWon(tripTotal(m))}`
+      : `노드 ${cnt}개`;
+    return `<div class="map-card" data-id="${m.id}">
+      <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
+      <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${sub}</div></div>
+      <button class="mc-btn" data-act="rename">✏️</button>
+      <button class="mc-btn" data-act="del">🗑</button>
+    </div>`;
+  };
+  box.innerHTML =
+    (trips.length ? `<div class="section-label">✈️ 여행 계획</div>` + trips.map(card).join('') : '') +
+    (ideas.length ? `<div class="section-label">🧠 생각 정리</div>` + ideas.map(card).join('') : '') +
+    (storageOK ? '' : `<div class="home-empty" style="padding:14px;color:var(--danger)">⚠️ 이 브라우저에서는 자동 저장이 안 됩니다. 백업 버튼을 활용하세요.</div>`);
+  box.querySelectorAll('.map-card').forEach(el => {
+    el.addEventListener('click', e => {
+      const id = el.dataset.id;
+      const act = e.target.dataset && e.target.dataset.act;
+      const m = state.maps.find(x => x.id === id);
+      if(act === 'del'){
+        e.stopPropagation();
+        if(confirm(`"${m.name}"을(를) 삭제할까요?`)){
+          state.maps = state.maps.filter(x => x.id !== id);
+          save(); renderHome();
+        }
+        return;
+      }
+      if(act === 'rename'){
+        e.stopPropagation();
+        const name = prompt('새 이름', m.name);
+        if(name && name.trim()){
+          m.name = name.trim();
+          if(m.nodes[m.rootId]) m.nodes[m.rootId].text = m.name;
+          save(); renderHome();
+        }
+        return;
+      }
+      openMap(id);
+    });
+  });
+}
+function tripTotal(m){
+  return Object.values(m.nodes).reduce((s,n) => s + (n.type==='item' ? Number(n.meta.cost)||0 : 0), 0);
+}
+
+/* ════════════════ 맵 생성 ════════════════ */
+function createIdeaMap(form){
+  const name = new FormData(form).get('name').trim() || '새 맵';
+  const rid = uid();
+  const map = {
+    id: uid(), kind:'idea', name, cam:{x:0,y:0,z:1}, rootId:rid,
+    nodes:{[rid]:{id:rid,parentId:null,type:'root',text:name,color:PALETTE[0],x:0,y:0,meta:{}}}
+  };
+  state.maps.push(map); save(); form.reset(); closeSheets(); openMap(map.id);
+  return false;
+}
+function createTripMap(form){
+  const f = new FormData(form);
+  const start = f.get('start'), end = f.get('end');
+  if(end < start){ alert('종료일이 시작일보다 빠릅니다.'); return false; }
+  const name = f.get('name').trim();
+  const rid = uid();
+  const map = {
+    id: uid(), kind:'trip', name, dest:(f.get('dest')||'').trim(), start, end,
+    cam:{x:0,y:0,z:1}, rootId:rid,
+    nodes:{[rid]:{id:rid,parentId:null,type:'root',text:name,color:PALETTE[0],x:0,y:0,meta:{}}}
+  };
+  // 날짜별 Day 노드 자동 생성
+  const s = new Date(start+'T00:00:00'), e = new Date(end+'T00:00:00');
+  let i = 0;
+  for(let d = new Date(s); d <= e && i < 90; d.setDate(d.getDate()+1), i++){
+    const nid = uid();
+    map.nodes[nid] = {id:nid, parentId:rid, type:'day', text:'', color:PALETTE[(i+1)%PALETTE.length], x:0, y:0, meta:{date:toYMD(d)}};
+  }
+  state.maps.push(map); save(); form.reset(); closeSheets();
+  openMap(map.id);
+  autoLayout();
+  return false;
+}
+
+/* ════════════════ 캔버스 렌더 ════════════════ */
+const SVGNS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('mmSvg');
+const world = document.getElementById('world');
+const wrap = document.getElementById('canvasWrap');
+const mctx = document.createElement('canvas').getContext('2d');
+
+function nodeSize(map, n){
+  const isRoot = n.type === 'root';
+  mctx.font = (isRoot ? '700 15px ' : '600 13.5px ') + '-apple-system, Segoe UI, sans-serif';
+  const w = Math.max(isRoot ? 110 : 78, mctx.measureText(nodeLabel(map, n)).width + 32);
+  return {w: Math.min(w, 320), h: isRoot ? 48 : 40};
+}
+function camTransform(map){
+  const r = wrap.getBoundingClientRect();
+  return `translate(${r.width/2 + map.cam.x},${r.height/2 + map.cam.y}) scale(${map.cam.z})`;
+}
+function applyCam(){ const m = curMap(); if(m) world.setAttribute('transform', camTransform(m)); }
+
+function renderMap(){
+  const map = curMap();
+  world.innerHTML = '';
+  if(!map) return;
+  applyCam();
+  for(const n of Object.values(map.nodes)){
+    if(!n.parentId || !map.nodes[n.parentId]) continue;
+    const p = map.nodes[n.parentId];
+    const path = document.createElementNS(SVGNS,'path');
+    const mx = (p.x + n.x)/2;
+    path.setAttribute('d', `M ${p.x} ${p.y} C ${mx} ${p.y}, ${mx} ${n.y}, ${n.x} ${n.y}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke','#c3cadd');
+    path.setAttribute('stroke-width', 2);
+    world.appendChild(path);
+  }
+  for(const n of Object.values(map.nodes)){
+    const isRoot = n.type === 'root';
+    const {w,h} = nodeSize(map, n);
+    const g = document.createElementNS(SVGNS,'g');
+    g.setAttribute('class','mm-node');
+    g.setAttribute('transform',`translate(${n.x},${n.y})`);
+    g.dataset.id = n.id;
+
+    const rect = document.createElementNS(SVGNS,'rect');
+    rect.setAttribute('x',-w/2); rect.setAttribute('y',-h/2);
+    rect.setAttribute('width',w); rect.setAttribute('height',h);
+    rect.setAttribute('rx', isRoot ? 15 : (n.type==='day' ? 20 : 11));
+    const filled = isRoot || n.type === 'day';
+    rect.setAttribute('fill', filled ? n.color : '#ffffff');
+    rect.setAttribute('stroke', n.id === sel ? '#1e2433' : n.color);
+    rect.setAttribute('stroke-width', n.id === sel ? 3.5 : 2);
+    if(n.id === sel) rect.setAttribute('filter','drop-shadow(0 3px 7px rgba(30,36,51,.3))');
+    g.appendChild(rect);
+
+    const text = document.createElementNS(SVGNS,'text');
+    text.setAttribute('text-anchor','middle');
+    text.setAttribute('dominant-baseline','central');
+    text.setAttribute('font-size', isRoot ? 15 : 13.5);
+    text.setAttribute('font-weight', isRoot ? 700 : 600);
+    text.setAttribute('fill', filled ? '#fff' : '#1e2433');
+    let label = nodeLabel(map, n);
+    if(label.length > 38) label = label.slice(0,37) + '…';
+    text.textContent = label;
+    g.appendChild(text);
+    world.appendChild(g);
+  }
+}
+
+/* ════════════════ 좌표/줌 ════════════════ */
+function screenToWorld(sx, sy){
+  const map = curMap(), r = wrap.getBoundingClientRect();
+  return {x:(sx-r.left-r.width/2-map.cam.x)/map.cam.z, y:(sy-r.top-r.height/2-map.cam.y)/map.cam.z};
+}
+function applyZoom(factor, cx, cy){
+  const map = curMap(); if(!map) return;
+  const r = wrap.getBoundingClientRect();
+  const z2 = Math.min(2.5, Math.max(0.15, map.cam.z*factor));
+  const f = z2/map.cam.z;
+  const px = (cx ?? r.left+r.width/2)-r.left-r.width/2;
+  const py = (cy ?? r.top+r.height/2)-r.top-r.height/2;
+  map.cam.x = px-(px-map.cam.x)*f;
+  map.cam.y = py-(py-map.cam.y)*f;
+  map.cam.z = z2;
+  applyCam(); save();
+}
+function zoomBy(f){ applyZoom(f); }
+function zoomFit(){
+  const map = curMap(); if(!map) return;
+  const ns = Object.values(map.nodes); if(!ns.length) return;
+  const r = wrap.getBoundingClientRect();
+  let minX=1/0, maxX=-1/0, minY=1/0, maxY=-1/0;
+  ns.forEach(n => {
+    const {w,h} = nodeSize(map,n);
+    minX=Math.min(minX,n.x-w/2); maxX=Math.max(maxX,n.x+w/2);
+    minY=Math.min(minY,n.y-h/2); maxY=Math.max(maxY,n.y+h/2);
+  });
+  const bw = maxX-minX+140, bh = maxY-minY+140;
+  const z = Math.min(1.6, Math.max(0.15, Math.min(r.width/bw, r.height/bh)));
+  map.cam.z = z;
+  map.cam.x = -((minX+maxX)/2)*z;
+  map.cam.y = -((minY+maxY)/2)*z;
+  applyCam(); save();
+}
+
+/* ════════════════ 포인터(터치+마우스) ════════════════ */
+const pointers = new Map();
+let drag = null, pinch = null, lastTap = {t:0, id:null};
+
+svg.addEventListener('pointerdown', e => {
+  const map = curMap(); if(!map) return;
+  svg.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(pointers.size === 2){ drag = null; pinch = null; return; }
+  const g = e.target.closest('.mm-node');
+  if(g && map.nodes[g.dataset.id]){
+    const n = map.nodes[g.dataset.id];
+    const w = screenToWorld(e.clientX, e.clientY);
+    drag = {type:'node', id:n.id, dx:n.x-w.x, dy:n.y-w.y, moved:false, sx:e.clientX, sy:e.clientY, t:Date.now()};
+  }else{
+    drag = {type:'pan', sx:e.clientX, sy:e.clientY, cx:map.cam.x, cy:map.cam.y, moved:false, t:Date.now()};
+  }
+});
+svg.addEventListener('pointermove', e => {
+  if(!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  const map = curMap(); if(!map) return;
+  if(pointers.size === 2){ doPinch(map); return; }
+  if(!drag) return;
+  const dx = e.clientX-drag.sx, dy = e.clientY-drag.sy;
+  if(Math.hypot(dx,dy) > 7) drag.moved = true;
+  if(!drag.moved) return;
+  if(drag.type === 'node'){
+    const n = map.nodes[drag.id]; if(!n) return;
+    const w = screenToWorld(e.clientX, e.clientY);
+    n.x = Math.round(w.x+drag.dx); n.y = Math.round(w.y+drag.dy);
+    renderMap();
+  }else{
+    map.cam.x = drag.cx+dx; map.cam.y = drag.cy+dy;
+    applyCam();
+  }
+});
+function pinchInfo(){
+  const [a,b] = [...pointers.values()];
+  return {d:Math.hypot(a.x-b.x, a.y-b.y), mx:(a.x+b.x)/2, my:(a.y+b.y)/2};
+}
+function doPinch(map){
+  const i = pinchInfo();
+  if(!pinch){ pinch = {d0:i.d, mx0:i.mx, my0:i.my, z0:map.cam.z, cx0:map.cam.x, cy0:map.cam.y}; return; }
+  const r = wrap.getBoundingClientRect();
+  const z2 = Math.min(2.5, Math.max(0.15, pinch.z0 * i.d/(pinch.d0||1)));
+  const px0 = pinch.mx0-r.left-r.width/2, py0 = pinch.my0-r.top-r.height/2;
+  const wx = (px0-pinch.cx0)/pinch.z0, wy = (py0-pinch.cy0)/pinch.z0;
+  const px = i.mx-r.left-r.width/2, py = i.my-r.top-r.height/2;
+  map.cam.z = z2;
+  map.cam.x = px-wx*z2;
+  map.cam.y = py-wy*z2;
+  applyCam();
+}
+function endPointer(e){
+  if(!pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  if(pointers.size < 2 && pinch){ pinch = null; save(); }
+  if(!drag) return;
+  const map = curMap();
+  if(map && !drag.moved && Date.now()-drag.t < 700){
+    if(drag.type === 'node'){
+      const id = drag.id;
+      if(lastTap.id === id && Date.now()-lastTap.t < 380){
+        lastTap = {t:0, id:null};
+        openEdit(id);
+      }else{
+        sel = id; lastTap = {t:Date.now(), id};
+        renderMap(); renderSelBar();
+      }
+    }else{
+      sel = null; lastTap = {t:0, id:null};
+      renderMap(); renderSelBar();
+    }
+  }
+  if(drag.moved) save();
+  drag = null;
+}
+svg.addEventListener('pointerup', endPointer);
+svg.addEventListener('pointercancel', endPointer);
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  applyZoom(e.deltaY < 0 ? 1.12 : 1/1.12, e.clientX, e.clientY);
+}, {passive:false});
+window.addEventListener('resize', () => { if(curMap()) renderMap(); });
+
+/* ════════════════ 선택 툴바 ════════════════ */
+function renderSelBar(){
+  const bar = document.getElementById('selBar');
+  const map = curMap();
+  const n = map && sel ? map.nodes[sel] : null;
+  if(!n){ bar.classList.remove('show'); return; }
+  const btn = (label, fn, cls='') => `<button class="${cls}" data-fn="${fn}">${label}</button>`;
+  let html = btn('✏️ 편집','edit');
+  if(map.kind === 'trip'){
+    if(n.type === 'root') html += btn('＋ Day 추가','addDay');
+    if(n.type === 'day') html += btn('＋ 일정 추가','addChild') + btn('＋ Day 추가','addDay');
+    if(n.type === 'item') html += btn('＋ 같은 날 일정','addSibling') + btn('＋ 메모 노드','addChild');
+    if(n.type === 'idea') html += btn('＋ 자식','addChild') + btn('＋ 형제','addSibling');
+  }else{
+    html += btn('＋ 자식','addChild');
+    if(n.type !== 'root') html += btn('＋ 형제','addSibling');
+  }
+  html += btn('🎨 색상','color');
+  if(n.type !== 'root') html += btn('🗑 삭제','del','danger');
+  bar.innerHTML = html;
+  bar.classList.add('show');
+  bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    const fn = b.dataset.fn;
+    if(fn === 'edit') openEdit(sel);
+    else if(fn === 'addChild') addChild(sel);
+    else if(fn === 'addSibling'){ const p = map.nodes[sel]; if(p && p.parentId) addChild(p.parentId); }
+    else if(fn === 'addDay') addDay();
+    else if(fn === 'color') cycleColor();
+    else if(fn === 'del') deleteNode();
+  }));
+}
+
+/* ════════════════ 노드 조작 ════════════════ */
+function typeForChild(map, parent){
+  if(map.kind !== 'trip') return 'idea';
+  if(parent.type === 'root') return 'day';
+  if(parent.type === 'day') return 'item';
+  return 'idea';
+}
+function placeBelow(map, parent){
+  const sib = Object.values(map.nodes).filter(n => n.parentId === parent.id);
+  const x = parent.x + 260;
+  const y = sib.length ? Math.max(...sib.map(s => s.y)) + 58 : parent.y;
+  return {x, y};
+}
+function addChild(parentId){
+  const map = curMap(); if(!map) return;
+  const p = map.nodes[parentId]; if(!p) return;
+  const type = typeForChild(map, p);
+  if(type === 'day'){ addDay(); return; }
+  const pos = placeBelow(map, p);
+  const n = {
+    id: uid(), parentId, type,
+    text: type === 'item' ? '새 일정' : '새 노드',
+    color: p.type === 'root' ? PALETTE[(Object.values(map.nodes).filter(x=>x.parentId===parentId).length+1)%PALETTE.length] : p.color,
+    x: pos.x, y: pos.y,
+    meta: type === 'item' ? {time:'', cat:'sight', cost:0, memo:''} : {}
+  };
+  map.nodes[n.id] = n;
+  sel = n.id;
+  save(); renderMap(); renderSelBar();
+  openEdit(n.id);
+}
+function addDay(){
+  const map = curMap(); if(!map || map.kind !== 'trip') return;
+  const days = childrenOf(map, map.rootId).filter(n => n.type === 'day');
+  let date = map.start;
+  if(days.length){
+    const last = days[days.length-1].meta.date;
+    const d = new Date((last || map.start) + 'T00:00:00');
+    d.setDate(d.getDate()+1);
+    date = toYMD(d);
+  }
+  const p = map.nodes[map.rootId];
+  const pos = placeBelow(map, p);
+  const n = {
+    id: uid(), parentId: map.rootId, type:'day', text:'',
+    color: PALETTE[(days.length+1)%PALETTE.length],
+    x: pos.x, y: pos.y, meta:{date}
+  };
+  map.nodes[n.id] = n;
+  if(date > map.end) map.end = date;
+  sel = n.id;
+  save(); renderMap(); renderSelBar();
+}
+function cycleColor(){
+  const map = curMap(); const n = map && map.nodes[sel]; if(!n) return;
+  n.color = PALETTE[(PALETTE.indexOf(n.color)+1) % PALETTE.length];
+  save(); renderMap();
+}
+function deleteNode(){
+  const map = curMap(); const n = map && map.nodes[sel]; if(!n) return;
+  if(n.type === 'root'){ alert('중심 노드는 삭제할 수 없어요.'); return; }
+  const toDel = [n.id];
+  for(let i=0; i<toDel.length; i++)
+    Object.values(map.nodes).forEach(c => { if(c.parentId === toDel[i]) toDel.push(c.id); });
+  if(toDel.length > 1 && !confirm(`하위 노드 ${toDel.length-1}개도 함께 삭제됩니다. 계속할까요?`)) return;
+  toDel.forEach(id => delete map.nodes[id]);
+  sel = null;
+  save(); renderMap(); renderSelBar(); closeSheets();
+}
+
+/* ════════════════ 자동 정돈 ════════════════ */
+function autoLayout(){
+  const map = curMap(); if(!map) return;
+  const GX = 270, GAP = 16, MIN = 54;
+  function h(id){
+    const ch = childrenOf(map, id);
+    if(!ch.length) return MIN;
+    return Math.max(MIN, ch.reduce((s,c) => s + h(c.id), 0) + (ch.length-1)*GAP);
+  }
+  function place(id, x, top){
+    const n = map.nodes[id];
+    const H = h(id);
+    n.x = x; n.y = Math.round(top + H/2);
+    let ty = top;
+    for(const c of childrenOf(map, id)){
+      const cH = h(c.id);
+      place(c.id, x + GX, ty);
+      ty += cH + GAP;
+    }
+  }
+  place(map.rootId, 0, -h(map.rootId)/2);
+  save(); renderMap(); zoomFit();
+}
+
+/* ════════════════ 노드 편집 시트 ════════════════ */
+let editId = null;
+function openEdit(id){
+  const map = curMap(); const n = map && map.nodes[id]; if(!n) return;
+  editId = id; sel = id; renderMap(); renderSelBar();
+  const form = document.getElementById('editForm');
+  const title = document.getElementById('editTitle');
+  const c = n.meta || {};
+  let html = '';
+  if(n.type === 'day'){
+    title.textContent = `📅 Day ${dayIndexOf(map,n) || '?'} 편집`;
+    html = `
+      <div class="field"><label>날짜</label><input name="date" type="date" value="${esc(c.date||'')}"></div>
+      <div class="field"><label>메모 (예: 테마, 지역)</label><input name="text" value="${esc(n.text)}" placeholder="예: 시내 관광 날"></div>`;
+  }else if(n.type === 'item'){
+    title.textContent = '📍 일정 편집';
+    html = `
+      <div class="field"><label>일정 내용</label><input name="text" value="${esc(n.text)}" required></div>
+      <div class="field-row">
+        <div class="field"><label>시간</label><input name="time" type="time" value="${esc(c.time||'')}"></div>
+        <div class="field"><label>분류</label><select name="cat">
+          ${Object.entries(CATS).map(([k,v]) => `<option value="${k}" ${k===(c.cat||'sight')?'selected':''}>${v.emoji} ${v.label}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="field"><label>비용 (원)</label><input name="cost" type="number" inputmode="numeric" min="0" step="100" value="${c.cost||''}" placeholder="0"></div>
+      <div class="field"><label>메모</label><textarea name="memo" rows="2" placeholder="예약번호, 팁 등">${esc(c.memo||'')}</textarea></div>`;
+  }else if(n.type === 'root' && map.kind === 'trip'){
+    title.textContent = '✈️ 여행 정보';
+    html = `
+      <div class="field"><label>여행 이름</label><input name="text" value="${esc(n.text)}" required></div>
+      <div class="field"><label>목적지</label><input name="dest" value="${esc(map.dest||'')}"></div>`;
+  }else{
+    title.textContent = n.type === 'root' ? '🧠 중심 주제 편집' : '💡 노드 편집';
+    html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
+  }
+  html += `<div class="field"><label>색상</label><div class="color-row">
+    ${PALETTE.map(col => `<button type="button" class="color-dot ${col===n.color?'on':''}" style="background:${col}" data-col="${col}"></button>`).join('')}
+  </div></div>`;
+  form.innerHTML = html;
+  form.querySelectorAll('.color-dot').forEach(b => b.addEventListener('click', () => {
+    form.querySelectorAll('.color-dot').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+  }));
+  const btns = document.getElementById('editBtns');
+  btns.innerHTML = `
+    ${n.type !== 'root' ? '<button type="button" class="danger-btn" id="editDel">🗑</button>' : ''}
+    <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
+    <button type="button" class="primary-btn" id="editSave">저장</button>`;
+  const delBtn = document.getElementById('editDel');
+  if(delBtn) delBtn.addEventListener('click', () => { sel = editId; deleteNode(); });
+  document.getElementById('editSave').addEventListener('click', saveEdit);
+  form.onsubmit = e => { e.preventDefault(); saveEdit(); };
+  openSheet('editSheet');
+  const first = form.querySelector('input[name=text]');
+  if(first && (n.text === '새 일정' || n.text === '새 노드')) setTimeout(() => { first.focus(); first.select(); }, 120);
+}
+function saveEdit(){
+  const map = curMap(); const n = map && map.nodes[editId]; if(!n) return;
+  const form = document.getElementById('editForm');
+  const f = new FormData(form);
+  if(f.has('text')) n.text = String(f.get('text')).trim();
+  if(n.type === 'day'){
+    n.meta.date = f.get('date') || n.meta.date;
+    if(n.meta.date && map.end && n.meta.date > map.end) map.end = n.meta.date;
+    if(n.meta.date && map.start && n.meta.date < map.start) map.start = n.meta.date;
+  }
+  if(n.type === 'item'){
+    n.meta.time = f.get('time') || '';
+    n.meta.cat = f.get('cat') || 'etc';
+    n.meta.cost = Number(f.get('cost')) || 0;
+    n.meta.memo = String(f.get('memo')||'').trim();
+  }
+  if(n.type === 'root' && map.kind === 'trip'){
+    map.name = n.text; map.dest = String(f.get('dest')||'').trim();
+    document.getElementById('tbTitle').textContent = map.name;
+  }
+  const on = form.querySelector('.color-dot.on');
+  if(on) n.color = on.dataset.col;
+  save(); renderMap(); renderSelBar(); closeSheets();
+}
+
+/* ════════════════ 일정표 보기 ════════════════ */
+function openItin(){
+  const map = curMap(); if(!map || map.kind !== 'trip') return;
+  const body = document.getElementById('itinBody');
+  const days = childrenOf(map, map.rootId).filter(n => n.type === 'day');
+  const total = tripTotal(map);
+  let html = `<div class="itin-head">
+    <h3 style="margin-bottom:0">🗒 ${esc(map.name)}</h3>
+    <div class="ih-meta">${map.dest ? '📍 '+esc(map.dest)+' · ' : ''}${fmtShort(map.start)} ~ ${fmtShort(map.end)} · ${days.length}일</div>
+    <div class="itin-total"><span>총 예상 경비</span><span>${fmtWon(total)}</span></div>
+  </div>`;
+  days.forEach((d, i) => {
+    const items = childrenOf(map, d.id).filter(n => n.type === 'item');
+    const daySum = items.reduce((s,n) => s + (Number(n.meta.cost)||0), 0);
+    html += `<div class="itin-day">
+      <div class="itin-day-head">
+        <span style="color:${d.color}">● Day ${i+1}</span>
+        <span style="font-weight:600;font-size:13px;color:var(--sub)">${fmtShort(d.meta.date)}${d.text ? ' · '+esc(d.text) : ''}</span>
+        <span class="id-sum">${daySum ? fmtWon(daySum) : ''}</span>
+      </div>
+      ${items.length ? items.map(it => {
+        const c = CATS[it.meta.cat] || CATS.etc;
+        return `<div class="itin-item" data-id="${it.id}">
+          <div class="ii-time">${it.meta.time ? esc(it.meta.time) : '—'}</div>
+          <div class="ii-main">
+            <div class="ii-title"><span class="cat-badge" style="background:${c.bg};color:${c.fg}">${c.emoji} ${c.label}</span>${esc(it.text)}</div>
+            ${it.meta.memo ? `<div class="ii-memo">${esc(it.meta.memo)}</div>` : ''}
+            ${it.meta.cost ? `<div class="ii-cost">💰 ${fmtWon(it.meta.cost)}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('') : '<div class="itin-empty">일정이 없어요</div>'}
+      <button class="itin-add" data-day="${d.id}">＋ 이 날에 일정 추가</button>
+    </div>`;
+  });
+  body.innerHTML = html;
+  body.querySelectorAll('.itin-item').forEach(el =>
+    el.addEventListener('click', () => { closeSheets(); openEdit(el.dataset.id); }));
+  body.querySelectorAll('.itin-add').forEach(el =>
+    el.addEventListener('click', () => { closeSheets(); addChild(el.dataset.day); }));
+  openSheet('itinSheet');
+}
+
+/* ════════════════ 시트 열기/닫기 ════════════════ */
+function openSheet(id){
+  closeSheets();
+  document.getElementById('backdrop').classList.add('show');
+  document.getElementById(id).classList.add('show');
+}
+function closeSheets(){
+  document.getElementById('backdrop').classList.remove('show');
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('show'));
+}
+
+/* ════════════════ 백업 / 복원 ════════════════ */
+function exportData(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mindtrip-backup.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importData(input){
+  const f = input.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(!Array.isArray(d.maps)) throw 0;
+      state = d; save(); renderHome();
+      alert('복원 완료!');
+    }catch(e){ alert('올바른 백업 파일이 아닙니다.'); }
+    input.value = '';
+  };
+  r.readAsText(f);
+}
+
+/* ════════════════ 데스크톱 단축키 ════════════════ */
+document.addEventListener('keydown', e => {
+  if(!curMap() || !sel) return;
+  if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  const map = curMap(), n = map.nodes[sel];
+  if(!n) return;
+  if(e.key === 'Tab'){ e.preventDefault(); addChild(sel); }
+  else if(e.key === 'Enter'){ e.preventDefault(); if(n.parentId) addChild(n.parentId); }
+  else if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteNode(); }
+  else if(e.key === 'F2'){ e.preventDefault(); openEdit(sel); }
+  else if(e.key === 'Escape'){ sel = null; renderMap(); renderSelBar(); }
+});
+
+/* ════════════════ PWA 서비스워커 ════════════════ */
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+/* ════════════════ 시작 ════════════════ */
+renderHome();
+show('scrHome');
+</script>
+</body>
+</html>
