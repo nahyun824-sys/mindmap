@@ -37,32 +37,51 @@
 
   /* ═══ 홈 화면 ═══ */
   .home-head{
-    padding:calc(14px + var(--sat)) 20px 12px; display:flex; align-items:center; gap:10px;
+    padding:calc(14px + var(--sat)) 18px 10px; display:flex; align-items:center; gap:10px;
     background:var(--panel); border-bottom:1px solid var(--line);
   }
   .logo{font-size:19px; font-weight:800; letter-spacing:-.3px;}
   .logo span{color:var(--accent);}
   .home-head .spacer{flex:1;}
-  .ghost-btn{
-    font-size:12.5px; color:var(--sub); padding:8px 12px; border-radius:9px;
-    border:1px solid var(--line); background:#fff; font-weight:600;
+  .head-btn{padding:8px 10px; border-radius:10px; font-size:18px; line-height:1;}
+  .head-btn:active{background:var(--bg);}
+  .search-row{
+    display:flex; gap:8px; padding:10px 16px 8px; background:var(--panel); border-bottom:1px solid var(--line);
   }
-  .home-body{flex:1; overflow-y:auto; padding:16px 16px calc(110px + var(--sab)); -webkit-overflow-scrolling:touch;}
-  .section-label{font-size:12px; font-weight:700; color:var(--sub); margin:14px 6px 8px; letter-spacing:.4px;}
+  .search-row input{border-radius:12px; padding:10px 14px; background:var(--bg); border-color:transparent; font-size:15px;}
+  .search-row input:focus{border-color:var(--accent); background:#fff;}
+  .topic-add-btn{
+    flex:0 0 auto; padding:0 14px; border-radius:12px; background:var(--accent-soft); color:var(--accent);
+    font-size:13px; font-weight:700; white-space:nowrap;
+  }
+  .home-body{flex:1; overflow-y:auto; padding:12px 14px calc(100px + var(--sab)); -webkit-overflow-scrolling:touch;}
+
+  .topic-row{
+    display:flex; align-items:center; gap:4px; padding:10px 8px; border-radius:11px;
+    font-weight:700; font-size:14.5px; cursor:pointer;
+  }
+  .topic-row:active{background:#eceff7;}
+  .topic-caret{width:20px; text-align:center; color:var(--sub); font-size:11px; flex:0 0 20px;}
+  .topic-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .topic-cnt{font-size:11.5px; color:var(--sub); font-weight:600; margin-left:5px;}
+  .topic-btns{margin-left:auto; display:flex; flex:0 0 auto;}
+  .topic-btns button{padding:7px 8px; font-size:13px; color:var(--sub); border-radius:8px;}
+  .tree-indent{margin-left:14px; border-left:1.5px solid var(--line); padding-left:8px;}
+
   .map-card{
-    background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
-    padding:15px 16px; margin-bottom:10px; display:flex; align-items:center; gap:13px; cursor:pointer;
+    background:var(--panel); border:1px solid var(--line); border-radius:15px; box-shadow:var(--shadow);
+    padding:13px 14px; margin:5px 0; display:flex; align-items:center; gap:12px; cursor:pointer;
   }
   .map-card:active{transform:scale(.985);}
   .mc-icon{
-    width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center;
-    font-size:22px; flex:0 0 44px;
+    width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    font-size:21px; flex:0 0 42px;
   }
   .mc-icon.trip{background:#eef0ff;}
   .mc-icon.idea{background:#dcfce7;}
   .mc-main{flex:1; min-width:0;}
-  .mc-title{font-size:15.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .mc-sub{font-size:12px; color:var(--sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mc-title{font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mc-sub{font-size:11.5px; color:var(--sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .mc-btn{padding:8px; font-size:15px; color:var(--sub); border-radius:8px; flex:0 0 auto;}
   .home-empty{text-align:center; color:var(--sub); padding:56px 20px; font-size:14px; line-height:1.8;}
   .home-empty .e-icon{font-size:46px; display:block; margin-bottom:10px;}
@@ -72,10 +91,8 @@
   }
   .fab{
     flex:1; padding:15px; border-radius:15px; font-size:15px; font-weight:700; color:#fff;
-    box-shadow:0 4px 14px rgba(99,102,241,.35);
+    background:var(--accent); box-shadow:0 4px 14px rgba(99,102,241,.35);
   }
-  .fab.trip{background:var(--accent);}
-  .fab.idea{background:#10b981; box-shadow:0 4px 14px rgba(16,185,129,.35);}
   .fab:active{transform:scale(.97);}
 
   /* ═══ 맵 화면 ═══ */
@@ -120,9 +137,7 @@
   .sel-bar button.danger{color:var(--danger); background:#fef2f2;}
 
   /* ═══ 바텀 시트 ═══ */
-  .backdrop{
-    position:absolute; inset:0; background:rgba(30,36,51,.42); z-index:40; display:none;
-  }
+  .backdrop{position:absolute; inset:0; background:rgba(30,36,51,.42); z-index:40; display:none;}
   .backdrop.show{display:block;}
   .sheet{
     position:absolute; left:0; right:0; bottom:0; z-index:50; background:var(--panel);
@@ -146,9 +161,20 @@
   .primary-btn:active{filter:brightness(1.12);}
   .danger-btn{background:#fef2f2; color:var(--danger); font-weight:700; padding:14px 18px; border-radius:13px;}
   .plain-btn{background:var(--bg); font-weight:700; padding:14px 18px; border-radius:13px;}
+  .convert-btn{
+    width:100%; padding:13px; border-radius:13px; background:var(--accent-soft); color:var(--accent);
+    font-size:14px; font-weight:800; margin-bottom:12px;
+  }
   .color-row{display:flex; gap:9px; flex-wrap:wrap; padding:2px 0;}
   .color-dot{width:34px; height:34px; border-radius:50%; border:3px solid transparent;}
   .color-dot.on{border-color:var(--text);}
+  .set-item{
+    display:flex; align-items:center; gap:12px; width:100%; padding:15px 4px;
+    border-bottom:1px solid var(--line); font-size:15px; font-weight:600; text-align:left;
+  }
+  .set-item .si-icon{font-size:19px; width:28px; text-align:center;}
+  .set-item .si-desc{display:block; font-size:11.5px; color:var(--sub); font-weight:500; margin-top:2px;}
+  .set-note{font-size:12px; color:var(--sub); line-height:1.7; padding:14px 4px 4px;}
 
   /* ═══ 일정표 시트 ═══ */
   .itin-head{margin-bottom:10px; flex:0 0 auto;}
@@ -158,9 +184,7 @@
     padding:11px 15px; border-radius:12px; margin:8px 0 4px; display:flex; justify-content:space-between;
   }
   .itin-day{margin-top:16px;}
-  .itin-day-head{
-    display:flex; align-items:baseline; gap:8px; font-size:14.5px; font-weight:800; margin-bottom:8px;
-  }
+  .itin-day-head{display:flex; align-items:baseline; gap:8px; font-size:14.5px; font-weight:800; margin-bottom:8px;}
   .itin-day-head .id-sum{margin-left:auto; font-size:12px; color:var(--sub); font-weight:600;}
   .itin-item{
     display:flex; gap:11px; padding:11px 13px; border:1px solid var(--line); border-radius:13px;
@@ -187,14 +211,15 @@
   <div class="home-head">
     <div class="logo">🗺️ Mind<span>Trip</span></div>
     <div class="spacer"></div>
-    <button class="ghost-btn" onclick="exportData()">백업</button>
-    <button class="ghost-btn" onclick="importFile.click()">복원</button>
-    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+    <button class="head-btn" onclick="openSheet('setSheet')" title="설정">⚙️</button>
+  </div>
+  <div class="search-row">
+    <input id="searchInput" type="search" placeholder="🔍 주제·마인드맵 검색">
+    <button class="topic-add-btn" onclick="addTopic(null)">＋ 주제</button>
   </div>
   <div class="home-body" id="homeBody"></div>
   <div class="fab-row">
-    <button class="fab idea" onclick="openSheet('ideaSheet')">🧠 생각 정리</button>
-    <button class="fab trip" onclick="openSheet('tripSheet')">✈️ 여행 계획</button>
+    <button class="fab" onclick="openNewMapSheet()">🧠 ＋ 새 마인드맵</button>
   </div>
 </div>
 
@@ -221,11 +246,13 @@
 <!-- ═══════════ 시트 & 백드롭 ═══════════ -->
 <div class="backdrop" id="backdrop" onclick="closeSheets()"></div>
 
-<div class="sheet" id="ideaSheet">
+<!-- 새 마인드맵 -->
+<div class="sheet" id="mapSheet">
   <div class="sheet-grip"></div>
-  <h3>🧠 새 생각 정리 맵</h3>
-  <form onsubmit="return createIdeaMap(this)">
-    <div class="field"><label>이름</label><input name="name" placeholder="예: 이직 고민, 아이디어 모음" required></div>
+  <h3>🧠 새 마인드맵</h3>
+  <form onsubmit="return createMap(this)">
+    <div class="field"><label>이름</label><input name="name" placeholder="예: 이직 고민, 오사카 여행" required></div>
+    <div class="field"><label>주제 (트리에서 위치 선택)</label><select name="topic" id="newMapTopic"></select></div>
     <div class="sheet-btns">
       <button type="button" class="plain-btn" onclick="closeSheets()">취소</button>
       <button type="submit" class="primary-btn">만들기</button>
@@ -233,23 +260,40 @@
   </form>
 </div>
 
-<div class="sheet" id="tripSheet">
+<!-- 맵 설정 (이름/주제 이동/삭제) -->
+<div class="sheet" id="mapSetSheet">
   <div class="sheet-grip"></div>
-  <h3>✈️ 새 여행 계획</h3>
-  <form onsubmit="return createTripMap(this)">
-    <div class="field"><label>여행 이름</label><input name="name" placeholder="예: 오사카 3박 4일" required></div>
+  <h3>📄 마인드맵 설정</h3>
+  <form onsubmit="return saveMapSettings(this)">
+    <div class="field"><label>이름</label><input name="name" required></div>
+    <div class="field"><label>주제</label><select name="topic" id="mapSetTopic"></select></div>
+    <div class="sheet-btns">
+      <button type="button" class="danger-btn" onclick="deleteMapFromSheet()">🗑</button>
+      <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
+      <button type="submit" class="primary-btn">저장</button>
+    </div>
+  </form>
+</div>
+
+<!-- 여행계획으로 변환 -->
+<div class="sheet" id="convertSheet">
+  <div class="sheet-grip"></div>
+  <h3>✈️ 여행계획으로 변환</h3>
+  <form onsubmit="return doConvert(this)">
     <div class="field"><label>목적지</label><input name="dest" placeholder="예: 일본 오사카"></div>
     <div class="field-row">
       <div class="field"><label>시작일</label><input name="start" type="date" required></div>
       <div class="field"><label>종료일</label><input name="end" type="date" required></div>
     </div>
+    <div class="set-note" style="padding-top:0">이 마인드맵에 날짜별 Day 가지가 추가되고, 시간·비용·분류를 가진 일정 노드와 🗒 일정표 보기를 쓸 수 있게 됩니다. 기존 노드는 그대로 유지돼요.</div>
     <div class="sheet-btns">
       <button type="button" class="plain-btn" onclick="closeSheets()">취소</button>
-      <button type="submit" class="primary-btn">여행 맵 만들기</button>
+      <button type="submit" class="primary-btn">변환하기</button>
     </div>
   </form>
 </div>
 
+<!-- 노드 편집 -->
 <div class="sheet" id="editSheet">
   <div class="sheet-grip"></div>
   <h3 id="editTitle">노드 편집</h3>
@@ -257,9 +301,31 @@
   <div class="sheet-btns" id="editBtns"></div>
 </div>
 
+<!-- 일정표 -->
 <div class="sheet" id="itinSheet" style="height:88%">
   <div class="sheet-grip"></div>
   <div class="sheet-body" id="itinBody"></div>
+  <div class="sheet-btns"><button class="plain-btn" style="flex:1" onclick="closeSheets()">닫기</button></div>
+</div>
+
+<!-- 설정 -->
+<div class="sheet" id="setSheet">
+  <div class="sheet-grip"></div>
+  <h3>⚙️ 설정</h3>
+  <div class="sheet-body">
+    <button class="set-item" onclick="exportData()">
+      <span class="si-icon">⬇️</span>
+      <span>백업하기<span class="si-desc">모든 마인드맵을 JSON 파일로 저장합니다</span></span>
+    </button>
+    <button class="set-item" onclick="importFile.click()">
+      <span class="si-icon">⬆️</span>
+      <span>복원하기<span class="si-desc">백업 파일을 불러옵니다 (현재 데이터를 덮어씁니다)</span></span>
+    </button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+    <div class="set-note" id="setNote">
+      💾 데이터는 이 기기(브라우저)에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우면 사라질 수 있으니, 중요한 내용은 백업해 두세요.
+    </div>
+  </div>
   <div class="sheet-btns"><button class="plain-btn" style="flex:1" onclick="closeSheets()">닫기</button></div>
 </div>
 
@@ -301,19 +367,30 @@ function load(){
   return null;
 }
 
-/* 노드: {id, parentId, text, type:'root'|'day'|'item'|'idea', color, x, y, meta:{date,time,cat,cost,memo}} */
-let state = load() || seedState();
+/* 데이터:
+   state.topics: [{id, name, parentId, open}]
+   state.maps: [{id, kind:'idea'|'trip', name, topicId, dest?, start?, end?, cam, rootId, nodes}]
+   노드: {id, parentId, text, type:'root'|'day'|'item'|'idea', color, x, y, meta:{date,time,cat,cost,memo}} */
+let state = normalize(load() || seedState());
 let curMapId = null;
 let sel = null;
+let searchQ = '';
 
+function normalize(s){
+  if(!Array.isArray(s.topics)) s.topics = [];
+  if(!Array.isArray(s.maps)) s.maps = [];
+  s.maps.forEach(m => { if(m.topicId === undefined) m.topicId = null; });
+  return s;
+}
 function seedState(){
   const today = new Date();
   const d1 = toYMD(today);
   const t2 = new Date(today); t2.setDate(t2.getDate()+1);
   const d2 = toYMD(t2);
+  const topicId = uid();
   const rid = uid(), day1 = uid(), day2 = uid(), i1 = uid(), i2 = uid(), i3 = uid();
   const trip = {
-    id: uid(), kind:'trip', name:'예시: 서울 여행', dest:'서울', start:d1, end:d2,
+    id: uid(), kind:'trip', name:'예시: 서울 여행', topicId, dest:'서울', start:d1, end:d2,
     cam:{x:0,y:0,z:1}, rootId:rid,
     nodes:{
       [rid]:{id:rid,parentId:null,type:'root',text:'예시: 서울 여행',color:PALETTE[0],x:0,y:0,meta:{}},
@@ -324,16 +401,19 @@ function seedState(){
       [i3]:{id:i3,parentId:day2,type:'item',text:'남산타워',color:PALETTE[2],x:540,y:80,meta:{time:'11:00',cat:'sight',cost:16000,memo:''}},
     }
   };
-  return {maps:[trip]};
+  return {topics:[{id:topicId, name:'여행', parentId:null, open:true}], maps:[trip]};
 }
 
 const curMap = () => state.maps.find(m => m.id === curMapId) || null;
 function childrenOf(map, id){
-  let ch = Object.values(map.nodes).filter(n => n.parentId === id);
-  if(ch.length && ch.every(c => c.type === 'day'))
-    ch.sort((a,b) => (a.meta.date||'').localeCompare(b.meta.date||''));
-  else if(ch.length && ch.every(c => c.type === 'item'))
-    ch.sort((a,b) => (a.meta.time||'99:99').localeCompare(b.meta.time||'99:99'));
+  const ch = Object.values(map.nodes).filter(n => n.parentId === id);
+  ch.sort((a,b) => {
+    if(a.type === 'day' && b.type === 'day') return (a.meta.date||'').localeCompare(b.meta.date||'');
+    if(a.type === 'item' && b.type === 'item') return (a.meta.time||'99:99').localeCompare(b.meta.time||'99:99');
+    if(a.type === 'day' && b.type !== 'day') return -1;
+    if(b.type === 'day' && a.type !== 'day') return 1;
+    return 0;
+  });
   return ch;
 }
 function dayIndexOf(map, n){
@@ -350,6 +430,59 @@ function nodeLabel(map, n){
     return `${n.meta.time ? n.meta.time + ' ' : ''}${c.emoji} ${n.text}`;
   }
   return n.text || ' ';
+}
+function tripTotal(m){
+  return Object.values(m.nodes).reduce((s,n) => s + (n.type==='item' ? Number(n.meta.cost)||0 : 0), 0);
+}
+
+/* ════════════════ 주제(폴더) 트리 ════════════════ */
+const topicChildren = pid => state.topics.filter(t => (t.parentId||null) === pid);
+const mapsIn = tid => state.maps.filter(m => (m.topicId||null) === tid);
+function topicById(id){ return state.topics.find(t => t.id === id) || null; }
+function topicPath(tid){
+  const parts = [];
+  let t = topicById(tid);
+  let guard = 0;
+  while(t && guard++ < 20){ parts.unshift(t.name); t = topicById(t.parentId); }
+  return parts.join(' / ');
+}
+function countMapsDeep(tid){
+  let n = mapsIn(tid).length;
+  topicChildren(tid).forEach(c => n += countMapsDeep(c.id));
+  return n;
+}
+function addTopic(parentId){
+  const name = prompt(parentId ? '하위 주제 이름' : '새 주제 이름', '');
+  if(!name || !name.trim()) return;
+  state.topics.push({id:uid(), name:name.trim(), parentId:parentId||null, open:true});
+  const p = topicById(parentId);
+  if(p) p.open = true;
+  save(); renderHome();
+}
+function renameTopic(id){
+  const t = topicById(id); if(!t) return;
+  const name = prompt('주제 이름', t.name);
+  if(name && name.trim()){ t.name = name.trim(); save(); renderHome(); }
+}
+function deleteTopic(id){
+  const t = topicById(id); if(!t) return;
+  const cnt = countMapsDeep(id);
+  if(!confirm(`주제 "${t.name}"을(를) 삭제할까요?${cnt ? `\n(포함된 마인드맵 ${cnt}개는 상위로 이동합니다)` : ''}`)) return;
+  state.topics.forEach(c => { if(c.parentId === id) c.parentId = t.parentId; });
+  state.maps.forEach(m => { if(m.topicId === id) m.topicId = t.parentId; });
+  state.topics = state.topics.filter(x => x.id !== id);
+  save(); renderHome();
+}
+function topicOptions(selectedId){
+  let out = `<option value="">📂 미분류</option>`;
+  const walk = (pid, depth) => {
+    topicChildren(pid).forEach(t => {
+      out += `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${'　'.repeat(depth)}📁 ${esc(t.name)}</option>`;
+      walk(t.id, depth+1);
+    });
+  };
+  walk(null, 0);
+  return out;
 }
 
 /* ════════════════ 화면 전환 ════════════════ */
@@ -372,93 +505,154 @@ function openMap(id){
 }
 
 /* ════════════════ 홈 렌더 ════════════════ */
+function mapCard(m, showPath){
+  const cnt = Object.keys(m.nodes).length - 1;
+  const sub = m.kind === 'trip'
+    ? `${m.dest ? esc(m.dest) + ' · ' : ''}${fmtShort(m.start)} ~ ${fmtShort(m.end)} · 총 ${fmtWon(tripTotal(m))}`
+    : `노드 ${cnt}개`;
+  const path = showPath && m.topicId ? `📁 ${esc(topicPath(m.topicId))} · ` : '';
+  return `<div class="map-card" data-mapid="${m.id}">
+    <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
+    <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${path}${sub}</div></div>
+    <button class="mc-btn" data-act="settings" title="설정">⚙️</button>
+  </div>`;
+}
 function renderHome(){
   const box = document.getElementById('homeBody');
-  const trips = state.maps.filter(m => m.kind === 'trip');
-  const ideas = state.maps.filter(m => m.kind !== 'trip');
-  if(!state.maps.length){
-    box.innerHTML = `<div class="home-empty"><span class="e-icon">🗺️</span>
-      아직 맵이 없어요.<br>아래 버튼으로 <b>생각 정리</b>나 <b>여행 계획</b>을 시작해 보세요!</div>`;
-    return;
+  let html = '';
+  const q = searchQ.trim().toLowerCase();
+
+  if(q){
+    // 검색: 맵 이름 또는 주제 경로에 매칭
+    const hits = state.maps.filter(m =>
+      m.name.toLowerCase().includes(q) ||
+      (m.topicId && topicPath(m.topicId).toLowerCase().includes(q))
+    );
+    html = `<div class="topic-row" style="cursor:default"><span class="topic-caret">🔍</span><span class="topic-name">검색 결과</span><span class="topic-cnt">${hits.length}개</span></div>`;
+    html += hits.length ? hits.map(m => mapCard(m, true)).join('')
+      : '<div class="home-empty" style="padding:30px">검색 결과가 없어요</div>';
+  }else if(!state.maps.length && !state.topics.length){
+    html = `<div class="home-empty"><span class="e-icon">🗺️</span>
+      아직 마인드맵이 없어요.<br>아래 버튼으로 첫 <b>마인드맵</b>을 만들어 보세요!<br>
+      <span style="font-size:12px">만든 뒤 중심 주제 설정에서 ✈️ 여행계획으로 변환할 수 있어요</span></div>`;
+  }else{
+    const renderTopicTree = (t) => {
+      const kids = topicChildren(t.id);
+      const maps = mapsIn(t.id);
+      const cnt = countMapsDeep(t.id);
+      let h = `<div class="topic-row" data-topic="${t.id}">
+        <span class="topic-caret">${t.open ? '▼' : '▶'}</span>
+        <span class="topic-name">📁 ${esc(t.name)}</span><span class="topic-cnt">${cnt}</span>
+        <span class="topic-btns">
+          <button data-tact="add" title="하위 주제 추가">＋</button>
+          <button data-tact="rename" title="이름 변경">✏️</button>
+          <button data-tact="del" title="삭제">🗑</button>
+        </span>
+      </div>`;
+      if(t.open){
+        const inner = kids.map(renderTopicTree).join('') + maps.map(m => mapCard(m)).join('');
+        if(inner) h += `<div class="tree-indent">${inner}</div>`;
+      }
+      return h;
+    };
+    html = topicChildren(null).map(renderTopicTree).join('');
+    const loose = mapsIn(null);
+    if(loose.length){
+      if(state.topics.length) html += `<div class="topic-row" style="cursor:default"><span class="topic-caret">📂</span><span class="topic-name">미분류</span><span class="topic-cnt">${loose.length}</span></div>`;
+      html += loose.map(m => mapCard(m)).join('');
+    }
   }
-  const card = m => {
-    const cnt = Object.keys(m.nodes).length - 1;
-    const sub = m.kind === 'trip'
-      ? `${m.dest ? esc(m.dest) + ' · ' : ''}${fmtShort(m.start)} ~ ${fmtShort(m.end)} · 총 ${fmtWon(tripTotal(m))}`
-      : `노드 ${cnt}개`;
-    return `<div class="map-card" data-id="${m.id}">
-      <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
-      <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${sub}</div></div>
-      <button class="mc-btn" data-act="rename">✏️</button>
-      <button class="mc-btn" data-act="del">🗑</button>
-    </div>`;
-  };
-  box.innerHTML =
-    (trips.length ? `<div class="section-label">✈️ 여행 계획</div>` + trips.map(card).join('') : '') +
-    (ideas.length ? `<div class="section-label">🧠 생각 정리</div>` + ideas.map(card).join('') : '') +
-    (storageOK ? '' : `<div class="home-empty" style="padding:14px;color:var(--danger)">⚠️ 이 브라우저에서는 자동 저장이 안 됩니다. 백업 버튼을 활용하세요.</div>`);
+  if(!storageOK) html += `<div class="home-empty" style="padding:14px;color:var(--danger)">⚠️ 이 브라우저에서는 자동 저장이 안 됩니다. 설정에서 백업을 활용하세요.</div>`;
+  box.innerHTML = html;
+
+  box.querySelectorAll('.topic-row[data-topic]').forEach(el => {
+    const id = el.dataset.topic;
+    el.addEventListener('click', e => {
+      const act = e.target.dataset && e.target.dataset.tact;
+      if(act === 'add'){ e.stopPropagation(); addTopic(id); return; }
+      if(act === 'rename'){ e.stopPropagation(); renameTopic(id); return; }
+      if(act === 'del'){ e.stopPropagation(); deleteTopic(id); return; }
+      const t = topicById(id);
+      if(t){ t.open = !t.open; save(); renderHome(); }
+    });
+  });
   box.querySelectorAll('.map-card').forEach(el => {
     el.addEventListener('click', e => {
-      const id = el.dataset.id;
-      const act = e.target.dataset && e.target.dataset.act;
-      const m = state.maps.find(x => x.id === id);
-      if(act === 'del'){
-        e.stopPropagation();
-        if(confirm(`"${m.name}"을(를) 삭제할까요?`)){
-          state.maps = state.maps.filter(x => x.id !== id);
-          save(); renderHome();
-        }
-        return;
-      }
-      if(act === 'rename'){
-        e.stopPropagation();
-        const name = prompt('새 이름', m.name);
-        if(name && name.trim()){
-          m.name = name.trim();
-          if(m.nodes[m.rootId]) m.nodes[m.rootId].text = m.name;
-          save(); renderHome();
-        }
-        return;
+      const id = el.dataset.mapid;
+      if(e.target.dataset && e.target.dataset.act === 'settings'){
+        e.stopPropagation(); openMapSettings(id); return;
       }
       openMap(id);
     });
   });
 }
-function tripTotal(m){
-  return Object.values(m.nodes).reduce((s,n) => s + (n.type==='item' ? Number(n.meta.cost)||0 : 0), 0);
-}
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQ = e.target.value;
+  renderHome();
+});
 
-/* ════════════════ 맵 생성 ════════════════ */
-function createIdeaMap(form){
-  const name = new FormData(form).get('name').trim() || '새 맵';
-  const rid = uid();
-  const map = {
-    id: uid(), kind:'idea', name, cam:{x:0,y:0,z:1}, rootId:rid,
-    nodes:{[rid]:{id:rid,parentId:null,type:'root',text:name,color:PALETTE[0],x:0,y:0,meta:{}}}
-  };
-  state.maps.push(map); save(); form.reset(); closeSheets(); openMap(map.id);
-  return false;
+/* ════════════════ 맵 생성/설정 ════════════════ */
+function openNewMapSheet(){
+  document.getElementById('newMapTopic').innerHTML = topicOptions(null);
+  openSheet('mapSheet');
 }
-function createTripMap(form){
+function createMap(form){
   const f = new FormData(form);
-  const start = f.get('start'), end = f.get('end');
-  if(end < start){ alert('종료일이 시작일보다 빠릅니다.'); return false; }
-  const name = f.get('name').trim();
+  const name = String(f.get('name')).trim() || '새 마인드맵';
   const rid = uid();
   const map = {
-    id: uid(), kind:'trip', name, dest:(f.get('dest')||'').trim(), start, end,
+    id: uid(), kind:'idea', name, topicId: f.get('topic') || null,
     cam:{x:0,y:0,z:1}, rootId:rid,
     nodes:{[rid]:{id:rid,parentId:null,type:'root',text:name,color:PALETTE[0],x:0,y:0,meta:{}}}
   };
-  // 날짜별 Day 노드 자동 생성
+  state.maps.push(map);
+  const t = topicById(map.topicId);
+  if(t) t.open = true;
+  save(); form.reset(); closeSheets(); openMap(map.id);
+  return false;
+}
+let settingsMapId = null;
+function openMapSettings(id){
+  const m = state.maps.find(x => x.id === id); if(!m) return;
+  settingsMapId = id;
+  const sheet = document.getElementById('mapSetSheet');
+  sheet.querySelector('input[name=name]').value = m.name;
+  document.getElementById('mapSetTopic').innerHTML = topicOptions(m.topicId);
+  openSheet('mapSetSheet');
+}
+function saveMapSettings(form){
+  const m = state.maps.find(x => x.id === settingsMapId); if(!m) return false;
+  const f = new FormData(form);
+  m.name = String(f.get('name')).trim() || m.name;
+  m.topicId = f.get('topic') || null;
+  if(m.nodes[m.rootId]) m.nodes[m.rootId].text = m.name;
+  save(); closeSheets(); renderHome();
+  return false;
+}
+function deleteMapFromSheet(){
+  const m = state.maps.find(x => x.id === settingsMapId); if(!m) return;
+  if(!confirm(`"${m.name}"을(를) 삭제할까요?`)) return;
+  state.maps = state.maps.filter(x => x.id !== settingsMapId);
+  save(); closeSheets(); renderHome();
+}
+
+/* ════════════════ 여행계획으로 변환 ════════════════ */
+function doConvert(form){
+  const map = curMap(); if(!map) return false;
+  const f = new FormData(form);
+  const start = f.get('start'), end = f.get('end');
+  if(end < start){ alert('종료일이 시작일보다 빠릅니다.'); return false; }
+  map.kind = 'trip';
+  map.dest = String(f.get('dest')||'').trim();
+  map.start = start; map.end = end;
   const s = new Date(start+'T00:00:00'), e = new Date(end+'T00:00:00');
   let i = 0;
   for(let d = new Date(s); d <= e && i < 90; d.setDate(d.getDate()+1), i++){
     const nid = uid();
-    map.nodes[nid] = {id:nid, parentId:rid, type:'day', text:'', color:PALETTE[(i+1)%PALETTE.length], x:0, y:0, meta:{date:toYMD(d)}};
+    map.nodes[nid] = {id:nid, parentId:map.rootId, type:'day', text:'', color:PALETTE[(i+1)%PALETTE.length], x:0, y:0, meta:{date:toYMD(d)}};
   }
-  state.maps.push(map); save(); form.reset(); closeSheets();
-  openMap(map.id);
+  save(); form.reset(); closeSheets();
+  document.getElementById('btnItin').style.display = '';
   autoLayout();
   return false;
 }
@@ -810,8 +1004,13 @@ function openEdit(id){
     html = `
       <div class="field"><label>여행 이름</label><input name="text" value="${esc(n.text)}" required></div>
       <div class="field"><label>목적지</label><input name="dest" value="${esc(map.dest||'')}"></div>`;
+  }else if(n.type === 'root'){
+    title.textContent = '🧠 주제 설정';
+    html = `
+      <button type="button" class="convert-btn" id="btnConvert">✈️ 여행계획으로 변환</button>
+      <div class="field"><label>중심 주제</label><input name="text" value="${esc(n.text)}" required></div>`;
   }else{
-    title.textContent = n.type === 'root' ? '🧠 중심 주제 편집' : '💡 노드 편집';
+    title.textContent = '💡 노드 편집';
     html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
   }
   html += `<div class="field"><label>색상</label><div class="color-row">
@@ -822,6 +1021,11 @@ function openEdit(id){
     form.querySelectorAll('.color-dot').forEach(x => x.classList.remove('on'));
     b.classList.add('on');
   }));
+  const convertBtn = document.getElementById('btnConvert');
+  if(convertBtn) convertBtn.addEventListener('click', () => {
+    saveEdit(true);
+    openSheet('convertSheet');
+  });
   const btns = document.getElementById('editBtns');
   btns.innerHTML = `
     ${n.type !== 'root' ? '<button type="button" class="danger-btn" id="editDel">🗑</button>' : ''}
@@ -829,13 +1033,13 @@ function openEdit(id){
     <button type="button" class="primary-btn" id="editSave">저장</button>`;
   const delBtn = document.getElementById('editDel');
   if(delBtn) delBtn.addEventListener('click', () => { sel = editId; deleteNode(); });
-  document.getElementById('editSave').addEventListener('click', saveEdit);
+  document.getElementById('editSave').addEventListener('click', () => saveEdit());
   form.onsubmit = e => { e.preventDefault(); saveEdit(); };
   openSheet('editSheet');
   const first = form.querySelector('input[name=text]');
   if(first && (n.text === '새 일정' || n.text === '새 노드')) setTimeout(() => { first.focus(); first.select(); }, 120);
 }
-function saveEdit(){
+function saveEdit(keepOpen){
   const map = curMap(); const n = map && map.nodes[editId]; if(!n) return;
   const form = document.getElementById('editForm');
   const f = new FormData(form);
@@ -851,13 +1055,15 @@ function saveEdit(){
     n.meta.cost = Number(f.get('cost')) || 0;
     n.meta.memo = String(f.get('memo')||'').trim();
   }
-  if(n.type === 'root' && map.kind === 'trip'){
-    map.name = n.text; map.dest = String(f.get('dest')||'').trim();
+  if(n.type === 'root'){
+    map.name = n.text;
+    if(map.kind === 'trip') map.dest = String(f.get('dest')||'').trim();
     document.getElementById('tbTitle').textContent = map.name;
   }
   const on = form.querySelector('.color-dot.on');
   if(on) n.color = on.dataset.col;
-  save(); renderMap(); renderSelBar(); closeSheets();
+  save(); renderMap(); renderSelBar();
+  if(!keepOpen) closeSheets();
 }
 
 /* ════════════════ 일정표 보기 ════════════════ */
@@ -929,7 +1135,7 @@ function importData(input){
     try{
       const d = JSON.parse(r.result);
       if(!Array.isArray(d.maps)) throw 0;
-      state = d; save(); renderHome();
+      state = normalize(d); save(); closeSheets(); renderHome();
       alert('복원 완료!');
     }catch(e){ alert('올바른 백업 파일이 아닙니다.'); }
     input.value = '';
