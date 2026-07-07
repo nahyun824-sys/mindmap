@@ -512,6 +512,7 @@ const themeC = () => {
     line: s.getPropertyValue('--line2').trim(),
     sub: s.getPropertyValue('--sub').trim(),
     body: s.getPropertyValue('--body').trim(),
+    bg: s.getPropertyValue('--bg').trim(),
   };
 };
 
@@ -870,6 +871,24 @@ function renderMap(){
     path.setAttribute('stroke', C.line);
     path.setAttribute('stroke-width', 2);
     world.appendChild(path);
+    // 연결선 설명 (베지어 t=0.5 지점 = 두 노드의 중간점)
+    if(n.edgeLabel){
+      const t = document.createElementNS(SVGNS,'text');
+      t.setAttribute('x', (p.x + n.x)/2);
+      t.setAttribute('y', (p.y + n.y)/2 - 7);
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size', 10.5);
+      t.setAttribute('font-weight', 600);
+      t.setAttribute('fill', C.sub);
+      t.setAttribute('stroke', C.bg);
+      t.setAttribute('stroke-width', 4);
+      t.setAttribute('stroke-linejoin','round');
+      t.setAttribute('paint-order','stroke');
+      let el = n.edgeLabel;
+      if(el.length > 20) el = el.slice(0,19) + '…';
+      t.textContent = el;
+      world.appendChild(t);
+    }
   }
   for(const n of Object.values(map.nodes)){
     const isRoot = n.type === 'root';
@@ -1208,6 +1227,9 @@ function openEdit(id){
     title.textContent = '노드 편집';
     html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
   }
+  if(n.type !== 'root'){
+    html += `<div class="field"><label>연결선 설명 (부모와 잇는 선 위에 표시)</label><input name="edge" value="${esc(n.edgeLabel||'')}" placeholder="예: 이유, 이동수단, 관계 등"></div>`;
+  }
   html += `<div class="field"><label>색상</label><div class="color-row">
     ${PALETTE.map(col => `<button type="button" class="color-dot ${col===n.color?'on':''}" style="background:${col}" data-col="${col}"></button>`).join('')}
   </div></div>`;
@@ -1231,14 +1253,22 @@ function openEdit(id){
   document.getElementById('editSave').addEventListener('click', () => saveEdit());
   form.onsubmit = e => { e.preventDefault(); saveEdit(); };
   openSheet('editSheet');
+  // 새로 만든 노드면 바로 타이핑할 수 있게 빈 입력창에 즉시 포커스
+  // (iOS는 탭 제스처와 같은 호출 스택에서 focus해야 키보드가 올라옴)
   const first = form.querySelector('input[name=text]');
-  if(first && (n.text === '새 일정' || n.text === '새 노드')) setTimeout(() => { first.focus(); first.select(); }, 120);
+  if(first && (n.text === '새 일정' || n.text === '새 노드')){
+    first.value = '';
+    first.placeholder = n.type === 'item' ? '일정 내용 입력…' : '내용 입력…';
+    first.focus();
+  }
 }
 function saveEdit(keepOpen){
   const map = curMap(); const n = map && map.nodes[editId]; if(!n) return;
   const form = document.getElementById('editForm');
   const f = new FormData(form);
   if(f.has('text')) n.text = String(f.get('text')).trim();
+  if(!n.text && n.type !== 'day' && n.type !== 'root') n.text = n.type === 'item' ? '새 일정' : '새 노드';
+  if(f.has('edge')) n.edgeLabel = String(f.get('edge')).trim();
   if(n.type === 'day'){
     n.meta.date = f.get('date') || n.meta.date;
     if(n.meta.date && map.end && n.meta.date > map.end) map.end = n.meta.date;
