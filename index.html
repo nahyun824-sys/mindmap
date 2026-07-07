@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>MindTrip</title>
-<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e0f13" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f8f8f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131312" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -13,18 +13,20 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root{
-    --bg:#f6f7f9; --panel:#ffffff; --line:#eceef3; --text:#181b22; --sub:#878d99;
-    --accent:#5b5bd6; --accent-soft:#eeeefc; --danger:#e5484d; --danger-soft:#fdebec;
-    --field:#f1f2f6; --dot:#e3e6ec;
-    --shadow:0 1px 2px rgba(24,27,34,.04), 0 6px 20px rgba(24,27,34,.05);
-    --shadow-lg:0 8px 40px rgba(24,27,34,.16);
+    --bg:#f8f8f6; --panel:#ffffff; --line:#ebebe8; --text:#1c1c1a; --sub:#96958f;
+    --accent:#1c1c1a; --on-accent:#ffffff; --accent-soft:#f0f0ed;
+    --danger:#b3564f; --danger-soft:#f7ecea;
+    --field:#f1f1ee; --dot:#e5e5e1;
+    --shadow:0 1px 2px rgba(28,28,26,.03), 0 6px 20px rgba(28,28,26,.04);
+    --shadow-lg:0 8px 40px rgba(28,28,26,.14);
     --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
   }
   @media (prefers-color-scheme: dark){
     :root{
-      --bg:#0e0f13; --panel:#191b21; --line:#272a33; --text:#eef0f4; --sub:#858b98;
-      --accent:#7b7ef4; --accent-soft:rgba(123,126,244,.15); --danger:#f2555a; --danger-soft:rgba(242,85,90,.14);
-      --field:#22242d; --dot:#1e2027;
+      --bg:#131312; --panel:#1c1c1b; --line:#2b2b29; --text:#f0efec; --sub:#8b8a84;
+      --accent:#f0efec; --on-accent:#161615; --accent-soft:rgba(240,239,236,.09);
+      --danger:#d07a73; --danger-soft:rgba(208,122,115,.13);
+      --field:#252523; --dot:#212120;
       --shadow:0 1px 2px rgba(0,0,0,.2), 0 6px 20px rgba(0,0,0,.25);
       --shadow-lg:0 8px 40px rgba(0,0,0,.5);
     }
@@ -61,7 +63,7 @@
     padding:calc(18px + var(--sat)) 20px 6px; display:flex; align-items:center; gap:8px;
   }
   .logo{font-size:24px; font-weight:800; letter-spacing:-.03em; flex:1;}
-  .logo span{color:var(--accent);}
+  .logo span{color:var(--sub);}
   .search-row{display:flex; gap:8px; padding:8px 16px 10px;}
   .search-box{
     flex:1; display:flex; align-items:center; gap:9px; background:var(--field);
@@ -104,8 +106,8 @@
     width:42px; height:42px; border-radius:13px; display:flex; align-items:center; justify-content:center;
     flex:0 0 42px;
   }
-  .mc-icon.trip{background:var(--accent-soft); color:var(--accent);}
-  .mc-icon.idea{background:rgba(16,185,129,.13); color:#10b981;}
+  .mc-icon.trip{background:rgba(108,142,173,.14); color:#6c8ead;}
+  .mc-icon.idea{background:rgba(110,139,106,.14); color:#6e8b6a;}
   .mc-main{flex:1; min-width:0;}
   .mc-title{font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .mc-sub{font-size:12px; color:var(--sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;}
@@ -121,8 +123,8 @@
   }
   .fab{
     position:absolute; right:20px; bottom:calc(24px + var(--sab)); width:58px; height:58px;
-    border-radius:20px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center;
-    box-shadow:0 8px 24px rgba(91,91,214,.4); transition:transform .12s; z-index:20;
+    border-radius:20px; background:var(--accent); color:var(--on-accent); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 24px rgba(28,28,26,.28); transition:transform .12s; z-index:20;
   }
   .fab:active{transform:scale(.92);}
 
@@ -190,7 +192,7 @@
   .field-row .field{flex:1;}
   .sheet-btns{display:flex; gap:8px; margin-top:8px; flex:0 0 auto;}
   .primary-btn{
-    flex:1; background:var(--accent); color:#fff; font-size:15px; font-weight:700;
+    flex:1; background:var(--accent); color:var(--on-accent); font-size:15px; font-weight:700;
     padding:14px; border-radius:14px; transition:transform .1s;
   }
   .primary-btn:active{transform:scale(.98); filter:brightness(1.1);}
@@ -404,14 +406,14 @@ const ic = (name, size=20, sw=1.8) =>
 
 /* ════════════════ 공통 ════════════════ */
 const LS_KEY = 'mindtrip-v2';
-const PALETTE = ['#5b5bd6','#10b981','#f59e0b','#e5484d','#8b5cf6','#0ea5e9','#ec4899','#64748b'];
+const PALETTE = ['#6c8ead','#6e8b6a','#b0885a','#b3564f','#8d7ba6','#5e9b94','#b07a8c','#8b8b87'];
 const CATS = {
-  move:{label:'이동',emoji:'🚗',fg:'#0ea5e9'},
-  food:{label:'식사',emoji:'🍽️',fg:'#f59e0b'},
-  sight:{label:'관광',emoji:'📸',fg:'#10b981'},
-  stay:{label:'숙소',emoji:'🏨',fg:'#8b5cf6'},
-  shop:{label:'쇼핑',emoji:'🛍️',fg:'#ec4899'},
-  etc:{label:'기타',emoji:'📌',fg:'#64748b'},
+  move:{label:'이동',emoji:'🚗',fg:'#6c8ead'},
+  food:{label:'식사',emoji:'🍽️',fg:'#b0885a'},
+  sight:{label:'관광',emoji:'📸',fg:'#6e8b6a'},
+  stay:{label:'숙소',emoji:'🏨',fg:'#8d7ba6'},
+  shop:{label:'쇼핑',emoji:'🛍️',fg:'#b07a8c'},
+  etc:{label:'기타',emoji:'📌',fg:'#8b8b87'},
 };
 const DAY_NAMES = ['일','월','화','수','목','금','토'];
 const uid = () => Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
@@ -789,11 +791,11 @@ function renderMap(){
     rect.setAttribute('width',w); rect.setAttribute('height',h);
     rect.setAttribute('rx', isRoot ? 15 : 12);
     if(isRoot){
-      rect.setAttribute('fill', n.color);
-      rect.setAttribute('stroke', n.id === sel ? C.text : 'none');
+      rect.setAttribute('fill', C.text);
+      rect.setAttribute('stroke', n.id === sel ? C.sub : 'none');
       rect.setAttribute('stroke-width', n.id === sel ? 2.5 : 0);
     }else if(n.type === 'day'){
-      rect.setAttribute('fill', n.color + '22');
+      rect.setAttribute('fill', n.color + '26');
       rect.setAttribute('stroke', n.id === sel ? n.color : 'none');
       rect.setAttribute('stroke-width', n.id === sel ? 2 : 0);
     }else{
@@ -824,7 +826,7 @@ function renderMap(){
       text.setAttribute('fill', C.text);
     }else{
       text.setAttribute('text-anchor','middle');
-      text.setAttribute('fill', isRoot ? '#fff' : n.color);
+      text.setAttribute('fill', isRoot ? C.panel : n.color);
     }
     let label = nodeLabel(map, n);
     if(label.length > 38) label = label.slice(0,37) + '…';
@@ -1120,9 +1122,11 @@ function openEdit(id){
     title.textContent = '노드 편집';
     html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
   }
-  html += `<div class="field"><label>색상</label><div class="color-row">
-    ${PALETTE.map(col => `<button type="button" class="color-dot ${col===n.color?'on':''}" style="background:${col}" data-col="${col}"></button>`).join('')}
-  </div></div>`;
+  if(n.type !== 'root'){
+    html += `<div class="field"><label>색상</label><div class="color-row">
+      ${PALETTE.map(col => `<button type="button" class="color-dot ${col===n.color?'on':''}" style="background:${col}" data-col="${col}"></button>`).join('')}
+    </div></div>`;
+  }
   form.innerHTML = html;
   form.querySelectorAll('.color-dot').forEach(b => b.addEventListener('click', () => {
     form.querySelectorAll('.color-dot').forEach(x => x.classList.remove('on'));
