@@ -427,6 +427,19 @@
   <div class="sheet-btns" id="editBtns"></div>
 </div>
 
+<!-- 연결선 편집 -->
+<div class="sheet" id="linkSheet">
+  <h3>🔗 연결선</h3>
+  <form onsubmit="return saveLink(this)">
+    <div class="field"><label>설명 (선 위에 표시)</label><input name="label" placeholder="예: 관련 아이디어, 참고"></div>
+    <div class="sheet-btns">
+      <button type="button" class="danger-btn" onclick="deleteLink()">삭제</button>
+      <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
+      <button type="submit" class="primary-btn">저장</button>
+    </div>
+  </form>
+</div>
+
 <!-- 일정표 -->
 <div class="sheet" id="itinSheet" style="width:min(480px, calc(100vw - 36px));">
   <div class="sheet-body" id="itinBody"></div>
@@ -448,6 +461,7 @@ const I = {
   fit:'<path d="M8.5 3.5h-3a2 2 0 0 0-2 2v3M15.5 3.5h3a2 2 0 0 1 2 2v3M8.5 20.5h-3a2 2 0 0 1-2-2v-3M15.5 20.5h3a2 2 0 0 0 2-2v-3"/>',
   minus:'<path d="M5 12h14"/>',
   cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  link:'<path d="M10 14a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 10a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
 };
 const ic = (name, size=20, sw=1.8) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[name]||''}</svg>`;
@@ -513,6 +527,7 @@ const themeC = () => {
     sub: s.getPropertyValue('--sub').trim(),
     body: s.getPropertyValue('--body').trim(),
     bg: s.getPropertyValue('--bg').trim(),
+    primary: s.getPropertyValue('--primary').trim(),
   };
 };
 
@@ -533,6 +548,7 @@ let state = normalize(load() || seedState());
 let curMapId = null;
 let sel = null;
 let searchQ = '';
+let linkFrom = null;   // 연결 모드: 시작 노드 id
 
 function normalize(s){
   if(!Array.isArray(s.topics)) s.topics = [];
@@ -540,6 +556,7 @@ function normalize(s){
   if(!['system','light','dark'].includes(s.theme)) s.theme = 'system';
   s.maps.forEach(m => {
     if(m.topicId === undefined) m.topicId = null;
+    if(!Array.isArray(m.links)) m.links = [];
     Object.values(m.nodes || {}).forEach(n => { if(OLD_COLORS[n.color]) n.color = OLD_COLORS[n.color]; });
   });
   return s;
@@ -661,18 +678,24 @@ function show(scr){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(scr).classList.add('active');
 }
-function goHome(){ curMapId = null; sel = null; closeSheets(); renderHome(); show('scrHome'); }
+function goHome(){ curMapId = null; sel = null; linkFrom = null; closeSheets(); renderHome(); show('scrHome'); }
+function showHint(msg, ms = 4000){
+  const h = document.getElementById('mmHint');
+  h.textContent = msg;
+  h.style.opacity = '1';
+  clearTimeout(showHint._t);
+  if(ms) showHint._t = setTimeout(() => h.style.opacity = '0', ms);
+}
+function hideHint(){ clearTimeout(showHint._t); document.getElementById('mmHint').style.opacity = '0'; }
 function openMap(id){
-  curMapId = id; sel = null;
+  curMapId = id; sel = null; linkFrom = null;
   show('scrMap');
   const map = curMap();
   document.getElementById('tbTitle').textContent = map.name;
   document.getElementById('btnItin').style.display = map.kind === 'trip' ? '' : 'none';
   renderMap(); renderSelBar();
   requestAnimationFrame(() => zoomFit());
-  const hint = document.getElementById('mmHint');
-  hint.style.opacity = '1';
-  setTimeout(() => hint.style.opacity = '0', 5000);
+  showHint('탭: 선택 · 두 번 탭: 편집 · 두 손가락: 확대/축소', 5000);
 }
 
 /* ════════════════ 홈 렌더 ════════════════ */
@@ -890,6 +913,51 @@ function renderMap(){
       world.appendChild(t);
     }
   }
+  // 교차 연결선 (점선)
+  for(const l of (map.links || [])){
+    const a = map.nodes[l.from], b = map.nodes[l.to];
+    if(!a || !b) continue;
+    const g = document.createElementNS(SVGNS,'g');
+    g.setAttribute('class','mm-link');
+    g.dataset.linkid = l.id;
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    const dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy) || 1;
+    const off = Math.min(46, len*0.18);
+    const qx = mx - dy/len*off, qy = my + dx/len*off;
+    const d = `M ${a.x} ${a.y} Q ${qx} ${qy}, ${b.x} ${b.y}`;
+    const hit = document.createElementNS(SVGNS,'path');
+    hit.setAttribute('d', d);
+    hit.setAttribute('fill','none');
+    hit.setAttribute('stroke','transparent');
+    hit.setAttribute('stroke-width', 20);
+    g.appendChild(hit);
+    const vis = document.createElementNS(SVGNS,'path');
+    vis.setAttribute('d', d);
+    vis.setAttribute('fill','none');
+    vis.setAttribute('stroke', C.primary);
+    vis.setAttribute('stroke-width', 1.8);
+    vis.setAttribute('stroke-dasharray','6 5');
+    vis.setAttribute('opacity', .65);
+    g.appendChild(vis);
+    if(l.label){
+      const t = document.createElementNS(SVGNS,'text');
+      t.setAttribute('x', (a.x + 2*qx + b.x)/4);
+      t.setAttribute('y', (a.y + 2*qy + b.y)/4 - 7);
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size', 10.5);
+      t.setAttribute('font-weight', 600);
+      t.setAttribute('fill', C.primary);
+      t.setAttribute('stroke', C.bg);
+      t.setAttribute('stroke-width', 4);
+      t.setAttribute('stroke-linejoin','round');
+      t.setAttribute('paint-order','stroke');
+      let el = l.label;
+      if(el.length > 20) el = el.slice(0,19) + '…';
+      t.textContent = el;
+      g.appendChild(t);
+    }
+    world.appendChild(g);
+  }
   for(const n of Object.values(map.nodes)){
     const isRoot = n.type === 'root';
     const {w,h} = nodeSize(map, n);
@@ -997,7 +1065,8 @@ svg.addEventListener('pointerdown', e => {
     const w = screenToWorld(e.clientX, e.clientY);
     drag = {type:'node', id:n.id, dx:n.x-w.x, dy:n.y-w.y, moved:false, sx:e.clientX, sy:e.clientY, t:Date.now()};
   }else{
-    drag = {type:'pan', sx:e.clientX, sy:e.clientY, cx:map.cam.x, cy:map.cam.y, moved:false, t:Date.now()};
+    const lg = e.target.closest('.mm-link');
+    drag = {type:'pan', linkId: lg ? lg.dataset.linkid : null, sx:e.clientX, sy:e.clientY, cx:map.cam.x, cy:map.cam.y, moved:false, t:Date.now()};
   }
 });
 svg.addEventListener('pointermove', e => {
@@ -1045,13 +1114,21 @@ function endPointer(e){
   if(map && !drag.moved && Date.now()-drag.t < 700){
     if(drag.type === 'node'){
       const id = drag.id;
-      if(lastTap.id === id && Date.now()-lastTap.t < 380){
+      if(linkFrom){
+        if(id !== linkFrom) createLink(linkFrom, id);
+        linkFrom = null; hideHint();
+      }else if(lastTap.id === id && Date.now()-lastTap.t < 380){
         lastTap = {t:0, id:null};
         openEdit(id);
       }else{
         sel = id; lastTap = {t:Date.now(), id};
         renderMap(); renderSelBar();
       }
+    }else if(linkFrom){
+      linkFrom = null; hideHint();
+      showHint('연결을 취소했어요', 1500);
+    }else if(drag.linkId){
+      openLinkEdit(drag.linkId);
     }else{
       sel = null; lastTap = {t:0, id:null};
       renderMap(); renderSelBar();
@@ -1085,6 +1162,7 @@ function renderSelBar(){
     html += btn('plus','자식','addChild');
     if(n.type !== 'root') html += btn('plus','형제','addSibling');
   }
+  html += btn('link','연결','link');
   if(n.type !== 'root') html += btn('trash','삭제','del','danger');
   bar.innerHTML = html;
   bar.classList.add('show');
@@ -1094,8 +1172,49 @@ function renderSelBar(){
     else if(fn === 'addChild') addChild(sel);
     else if(fn === 'addSibling'){ const p = map.nodes[sel]; if(p && p.parentId) addChild(p.parentId); }
     else if(fn === 'addDay') addDay();
+    else if(fn === 'link') startLink();
     else if(fn === 'del') deleteNode();
   }));
+}
+
+/* ════════════════ 교차 연결선 ════════════════ */
+function startLink(){
+  if(!sel) return;
+  linkFrom = sel;
+  showHint('연결할 노드를 탭하세요 · 빈 곳을 탭하면 취소', 0);
+}
+function createLink(a, b){
+  const map = curMap(); if(!map) return;
+  map.links = map.links || [];
+  if(map.links.some(l => (l.from === a && l.to === b) || (l.from === b && l.to === a))){
+    showHint('이미 연결된 노드예요', 1800);
+    return;
+  }
+  const link = {id: uid(), from: a, to: b, label: ''};
+  map.links.push(link);
+  save(); renderMap();
+  openLinkEdit(link.id);
+}
+let editLinkId = null;
+function openLinkEdit(id){
+  const map = curMap(); if(!map) return;
+  const l = (map.links || []).find(x => x.id === id); if(!l) return;
+  editLinkId = id;
+  const input = document.getElementById('linkSheet').querySelector('input[name=label]');
+  input.value = l.label || '';
+  openSheet('linkSheet');
+}
+function saveLink(form){
+  const map = curMap(); if(!map) return false;
+  const l = (map.links || []).find(x => x.id === editLinkId);
+  if(l){ l.label = String(new FormData(form).get('label') || '').trim(); save(); renderMap(); }
+  closeSheets();
+  return false;
+}
+function deleteLink(){
+  const map = curMap(); if(!map) return;
+  map.links = (map.links || []).filter(x => x.id !== editLinkId);
+  save(); renderMap(); closeSheets();
 }
 
 /* ════════════════ 노드 조작 ════════════════ */
@@ -1159,6 +1278,7 @@ function deleteNode(){
     Object.values(map.nodes).forEach(c => { if(c.parentId === toDel[i]) toDel.push(c.id); });
   if(toDel.length > 1 && !confirm(`하위 노드 ${toDel.length-1}개도 함께 삭제됩니다. 계속할까요?`)) return;
   toDel.forEach(id => delete map.nodes[id]);
+  map.links = (map.links || []).filter(l => !toDel.includes(l.from) && !toDel.includes(l.to));
   sel = null;
   save(); renderMap(); renderSelBar(); closeSheets();
 }

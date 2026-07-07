@@ -1,4 +1,4 @@
-const CACHE = 'mindtrip-v9';
+const CACHE = 'mindtrip-v10';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
