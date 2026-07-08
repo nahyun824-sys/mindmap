@@ -10,6 +10,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="MindTrip">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --primary:#667eea; --on-primary:#ffffff; --primary-soft:#f5f3ff;
@@ -48,7 +51,7 @@
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html,body{height:100%; overscroll-behavior:none;}
   body{
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     background:var(--bg); color:var(--body); overflow:hidden; position:fixed; inset:0;
     user-select:none; -webkit-user-select:none; -webkit-font-smoothing:antialiased;
   }
@@ -291,6 +294,12 @@
   }
   .itin-add:active{background:var(--field);}
   .itin-empty{font-size:12.5px; color:var(--sub); padding:4px 2px;}
+  .itin-item.sub{background:transparent; border:1.5px dashed var(--line2);}
+  .ii-addsub{
+    flex:0 0 auto; width:26px; height:26px; border-radius:8px; align-self:center;
+    display:flex; align-items:center; justify-content:center; color:var(--sub); font-size:15px;
+  }
+  .ii-addsub:active{background:var(--line);}
 
   /* ═══ 플래너 화면 ═══ */
   .plan-scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4px 18px calc(24px + var(--sab));}
@@ -303,14 +312,107 @@
     color:var(--sub); font-size:13px; font-weight:600;
   }
   .plan-day-add:active{background:var(--field);}
+  .pcal-wrap{background:var(--panel); border-radius:14px; padding:14px 14px 10px; box-shadow:var(--shadow); margin-top:12px;}
+  .pcal-title{font-size:13px; font-weight:700; color:var(--text); margin-bottom:8px; text-align:center;}
+  .pcal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:4px;}
+  .pcal-wd{text-align:center; font-size:10px; font-weight:600; color:var(--sub); padding:2px 0;}
+  .pcal-wd:first-child{color:var(--red);}
+  .pcal-grid .pcal-wd:nth-child(7){color:var(--primary);}
+  .pcal-cell{
+    aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    border-radius:10px; font-size:11.5px; color:var(--body); gap:1px; min-height:34px;
+  }
+  .pcal-cell.trip{font-weight:700; cursor:pointer;}
+  .pcal-cell.trip:active{transform:scale(.94);}
+  .pcal-cell.today{box-shadow:inset 0 0 0 1.5px var(--primary);}
+  .pcal-dayn{font-size:8.5px; font-weight:700; line-height:1; opacity:.85;}
+  .itin-day.flash{box-shadow:0 0 0 2.5px var(--primary), var(--shadow); transition:box-shadow .2s;}
+
+  /* ═══ 로그인 & 공유 ═══ */
+  #scrLogin{align-items:center; justify-content:center;}
+  .login-card{
+    background:var(--panel); border-radius:24px; padding:48px 40px; text-align:center;
+    box-shadow:var(--shadow-md); width:min(360px, calc(100vw - 48px));
+  }
+  .login-icon{font-size:48px; margin-bottom:16px;}
+  .login-title{font-size:24px; font-weight:700; color:var(--text); margin-bottom:8px;}
+  .login-desc{font-size:14px; color:var(--sub); margin-bottom:32px; line-height:1.6;}
+  .google-btn{
+    display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:14px;
+    background:var(--panel); border:1.5px solid var(--line2); border-radius:12px;
+    font-size:15px; font-weight:600; color:var(--body);
+  }
+  .google-btn:active{background:var(--field);}
+  .google-logo{width:20px; height:20px;}
+  .login-note{margin-top:14px; font-size:12px; color:var(--sub); line-height:1.6;}
+  .viewing-banner{
+    display:none; background:var(--primary); color:var(--on-primary);
+    padding:calc(10px + var(--sat)) 20px 10px; align-items:center; justify-content:space-between;
+    font-size:13px; font-weight:600; gap:8px;
+  }
+  .viewing-banner.on{display:flex;}
+  .viewing-banner.on + .app-header{padding-top:12px;}
+  .back-btn{background:rgba(255,255,255,.22); border-radius:8px; padding:5px 12px; font-size:12px; color:#fff; flex:0 0 auto;}
+  .header-right{display:flex; align-items:center; gap:10px;}
+  .user-avatar{
+    width:32px; height:32px; border-radius:50%; background:var(--primary); color:var(--on-primary);
+    font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;
+    overflow:hidden; cursor:pointer; display:none;
+  }
+  .user-avatar.on{display:flex;}
+  .user-avatar img{width:100%; height:100%; object-fit:cover;}
+  .share-link-box{
+    background:var(--primary-soft); border-radius:10px; padding:11px 13px; font-size:12px; color:var(--primary);
+    word-break:break-all; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .copy-btn{background:var(--primary); color:var(--on-primary); border-radius:8px; padding:6px 12px; font-size:12px; white-space:nowrap; flex:0 0 auto;}
+  .su-item{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+  .su-item:last-child{border-bottom:none;}
+  .su-av{
+    width:34px; height:34px; border-radius:50%; background:var(--primary); color:var(--on-primary);
+    font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; overflow:hidden; flex:0 0 auto;
+  }
+  .su-av img{width:100%; height:100%; object-fit:cover;}
+  .su-info{flex:1; min-width:0;}
+  .su-name{font-size:13px; font-weight:600; color:var(--body); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .su-email{font-size:11px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .remove-btn{border:1px solid var(--line2); border-radius:8px; padding:4px 9px; font-size:11px; color:var(--sub); flex:0 0 auto;}
+  .view-cal-btn{background:var(--primary); color:var(--on-primary); border-radius:8px; padding:5px 12px; font-size:12px; flex:0 0 auto;}
+  .empty-sec{text-align:center; color:var(--sub); font-size:13px; padding:14px 0;}
 </style>
 </head>
 <body>
 
+<!-- ═══════════ 로그인 ═══════════ -->
+<div class="screen" id="scrLogin">
+  <div class="login-card">
+    <div class="login-icon">🗺️</div>
+    <div class="login-title">MindTrip</div>
+    <div class="login-desc">Google 계정으로 로그인하면<br>어디서든 같은 마인드맵을 쓸 수 있어요</div>
+    <button class="google-btn" id="googleLoginBtn">
+      <svg class="google-logo" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Google로 로그인
+    </button>
+    <div class="login-note">투두 캘린더와 같은 계정을 쓰면 돼요</div>
+  </div>
+</div>
+
 <!-- ═══════════ 홈 ═══════════ -->
 <div class="screen" id="scrHome">
+  <div class="viewing-banner" id="viewingBanner">
+    <span id="viewingLabel"></span>
+    <button class="back-btn" onclick="leaveShared()">내 마인드맵으로</button>
+  </div>
   <div class="app-header">
     <div class="cal-title">MindTrip</div>
+    <div class="header-right">
+      <div class="user-avatar" id="userAvatar" title="설정"></div>
+    </div>
   </div>
   <div class="home-scroll">
     <!-- 마인드맵 목록 -->
@@ -330,6 +432,29 @@
     </div>
     <!-- 설정 -->
     <div class="view" id="viewSettings">
+      <div class="settings-section" id="secAccount" style="display:none">
+        <div class="sec-title">👤 계정</div>
+        <div class="su-item" id="myAccountRow"></div>
+        <button class="set-item" onclick="doSignOut()">
+          <span class="si-icon">🚪</span><span>로그아웃</span>
+        </button>
+      </div>
+      <div class="settings-section" id="secShare" style="display:none">
+        <div class="sec-title">📤 친구 초대</div>
+        <div class="share-link-box">
+          <span id="shareLinkText"></span>
+          <button class="copy-btn" onclick="copyShareLink()">복사</button>
+        </div>
+        <div class="set-note" style="margin-top:8px">링크로 들어온 친구는 내 마인드맵을 <b>함께 보고 수정</b>할 수 있어요</div>
+      </div>
+      <div class="settings-section" id="secSharedWith" style="display:none">
+        <div class="sec-title">👥 공유한 사람들</div>
+        <div id="sharedWithList"></div>
+      </div>
+      <div class="settings-section" id="secSharedMaps" style="display:none">
+        <div class="sec-title">🔗 공유받은 마인드맵</div>
+        <div id="sharedMapsList"></div>
+      </div>
       <div class="settings-section">
         <div class="sec-title">🎨 테마</div>
         <div class="seg" id="themeSeg">
@@ -353,7 +478,7 @@
       <div class="settings-section">
         <div class="sec-title">ℹ️ 안내</div>
         <div class="set-note">
-          데이터는 이 기기(브라우저)에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우면 사라질 수 있으니, 중요한 내용은 백업해 두세요.<br><br>
+          로그인하면 데이터가 클라우드에 자동 저장되어 어느 기기에서든 이어서 쓸 수 있어요. 오프라인일 때는 이 기기에 임시 저장했다가 다시 연결되면 동기화됩니다.<br><br>
           마인드맵의 중심 주제 설정에서 <b>여행계획으로 변환</b>하면 날짜별 플래너가 열려요. 마인드맵에서 노드를 선택해 <b>일정에 추가</b>를 누르면 아이디어를 그대로 일정으로 옮길 수 있고, 언제든 일반 마인드맵으로 되돌릴 수 있어요.
         </div>
       </div>
@@ -482,7 +607,7 @@
   <form onsubmit="return savePlanItem(this)">
     <div class="field"><label>일정 내용</label><input name="text" required></div>
     <div class="field-row">
-      <div class="field"><label>날짜</label><select name="day" id="pitemDay"></select></div>
+      <div class="field" id="pitemDayField"><label>날짜</label><select name="day" id="pitemDay"></select></div>
       <div class="field"><label>시간</label><input name="time" type="time"></div>
     </div>
     <div class="field-row">
@@ -581,9 +706,14 @@ const themeC = () => {
 };
 
 let storageOK = true;
-function save(){
+function saveLocalOnly(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
   catch(e){ storageOK = false; }
+}
+function save(){
+  // 공유받은 마인드맵을 편집 중일 땐 내 로컬 캐시를 덮어쓰지 않음
+  if(!isShared()) saveLocalOnly();
+  scheduleCloudPush();
 }
 function load(){
   try{
@@ -597,7 +727,8 @@ let state = normalize(load() || seedState());
 let curMapId = null;
 let sel = null;
 let searchQ = '';
-let linkFrom = null;   // 연결 모드: 시작 노드 id
+let linkFrom = null;      // 연결 모드: 시작 노드 id
+let groupJoinFrom = null; // 그룹에 넣기 모드: 대상 노드 id
 
 function normalize(s){
   if(!Array.isArray(s.topics)) s.topics = [];
@@ -630,7 +761,8 @@ function normalize(s){
     }
     if(m.plan){
       if(!Array.isArray(m.plan.days)) m.plan.days = [];
-      m.plan.days.forEach(d => { if(!Array.isArray(d.items)) d.items = []; });
+      const fixSubs = arr => arr.forEach(it => { if(!Array.isArray(it.subs)) it.subs = []; fixSubs(it.subs); });
+      m.plan.days.forEach(d => { if(!Array.isArray(d.items)) d.items = []; fixSubs(d.items); });
     }
     Object.values(m.nodes || {}).forEach(n => { if(n.type === 'day' || n.type === 'item') n.type = 'idea'; });
   });
@@ -685,8 +817,13 @@ function nodeLabel(map, n){
   return n.text || ' ';
 }
 /* ── 플래너(plan) 헬퍼: 일정은 노드가 아니라 map.plan에 분리 저장 ── */
+/* 일정 항목은 subs로 최대 3단계(대/중/소) 중첩 */
+const DEPTH_NAMES = ['대분류','중분류','소분류'];
+function itemSum(it){
+  return (Number(it.cost)||0) + (it.subs||[]).reduce((s,x) => s + itemSum(x), 0);
+}
 function planTotal(m){
-  return ((m.plan && m.plan.days) || []).reduce((s,d) => s + d.items.reduce((x,i) => x + (Number(i.cost)||0), 0), 0);
+  return ((m.plan && m.plan.days) || []).reduce((s,d) => s + d.items.reduce((x,i) => x + itemSum(i), 0), 0);
 }
 function planRange(m){
   const ds = ((m.plan && m.plan.days) || []).map(d => d.date).filter(Boolean).sort();
@@ -695,7 +832,24 @@ function planRange(m){
 function sortPlan(m){
   if(!m.plan) return;
   m.plan.days.sort((a,b) => (a.date||'9999').localeCompare(b.date||'9999'));
-  m.plan.days.forEach(d => d.items.sort((a,b) => (a.time||'99:99').localeCompare(b.time||'99:99')));
+  const sortItems = arr => { arr.sort((a,b) => (a.time||'99:99').localeCompare(b.time||'99:99')); arr.forEach(it => sortItems(it.subs||[])); };
+  m.plan.days.forEach(d => sortItems(d.items));
+}
+/* id로 일정 항목 찾기 → {day, parent(상위 항목|null), item, depth} */
+function findPlanItem(m, id){
+  for(const d of ((m.plan && m.plan.days) || [])){
+    const walk = (arr, parent, depth) => {
+      for(const it of arr){
+        if(it.id === id) return {day:d, parent, item:it, depth};
+        const r = walk(it.subs||[], it, depth+1);
+        if(r) return r;
+      }
+      return null;
+    };
+    const r = walk(d.items, null, 0);
+    if(r) return r;
+  }
+  return null;
 }
 
 /* ════════════════ 주제(폴더) 트리 ════════════════ */
@@ -753,7 +907,7 @@ function show(scr){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(scr).classList.add('active');
 }
-function goHome(){ curMapId = null; sel = null; linkFrom = null; closeSheets(); renderHome(); show('scrHome'); }
+function goHome(){ curMapId = null; sel = null; linkFrom = null; groupJoinFrom = null; closeSheets(); renderHome(); show('scrHome'); }
 function showHint(msg, ms = 4000){
   const h = document.getElementById('mmHint');
   h.textContent = msg;
@@ -763,7 +917,7 @@ function showHint(msg, ms = 4000){
 }
 function hideHint(){ clearTimeout(showHint._t); document.getElementById('mmHint').style.opacity = '0'; }
 function openMap(id){
-  curMapId = id; sel = null; linkFrom = null;
+  curMapId = id; sel = null; linkFrom = null; groupJoinFrom = null;
   show('scrMap');
   const map = curMap();
   document.getElementById('tbTitle').textContent = map.name;
@@ -964,7 +1118,7 @@ const mctx = document.createElement('canvas').getContext('2d');
 
 function nodeSize(map, n){
   const isRoot = n.type === 'root';
-  mctx.font = (isRoot ? '700 15px ' : '600 13.5px ') + '-apple-system, Segoe UI, sans-serif';
+  mctx.font = (isRoot ? '700 15px ' : '600 13.5px ') + "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const tw = mctx.measureText(nodeLabel(map, n)).width;
   const pad = isRoot ? 36 : 48;
   const w = Math.max(isRoot ? 110 : 78, tw + pad);
@@ -975,17 +1129,36 @@ function nodeDepth(map, n){
   while(p && p.parentId && map.nodes[p.parentId] && guard++ < 50){ d++; p = map.nodes[p.parentId]; }
   return d;
 }
-function subtreeBox(map, id){
-  let minX=1/0, maxX=-1/0, minY=1/0, maxY=-1/0;
+function subtreeBox(map, id, box){
+  const b = box || {minX:1/0, maxX:-1/0, minY:1/0, maxY:-1/0};
   const walk = nid => {
     const n = map.nodes[nid]; if(!n) return;
     const {w,h} = nodeSize(map, n);
-    minX=Math.min(minX,n.x-w/2); maxX=Math.max(maxX,n.x+w/2);
-    minY=Math.min(minY,n.y-h/2); maxY=Math.max(maxY,n.y+h/2);
+    b.minX=Math.min(b.minX,n.x-w/2); b.maxX=Math.max(b.maxX,n.x+w/2);
+    b.minY=Math.min(b.minY,n.y-h/2); b.maxY=Math.max(b.maxY,n.y+h/2);
     Object.values(map.nodes).forEach(c => { if(c.parentId === nid) walk(c.id); });
   };
   walk(id);
-  return {minX, maxX, minY, maxY};
+  return b;
+}
+/* 그룹 영역 = 그룹 노드의 서브트리 + 별도로 담은 멤버 노드(groupId)들의 서브트리 */
+function groupBox(map, ownerId){
+  const b = subtreeBox(map, ownerId);
+  Object.values(map.nodes).forEach(n => { if(n.groupId === ownerId) subtreeBox(map, n.id, b); });
+  return b;
+}
+/* 노드가 시각적으로 속한 그룹의 소유 노드 id (자기 그룹 > 멤버십 > 조상 그룹 순) */
+function groupOwnerOf(map, id){
+  let n = map.nodes[id];
+  if(!n) return null;
+  if(n.group) return n.id;
+  if(n.groupId && map.nodes[n.groupId]) return n.groupId;
+  let guard = 0;
+  while(n && n.parentId && map.nodes[n.parentId] && guard++ < 50){
+    n = map.nodes[n.parentId];
+    if(n.group) return n.id;
+  }
+  return null;
 }
 function camTransform(map){
   const r = wrap.getBoundingClientRect();
@@ -1003,7 +1176,7 @@ function renderMap(){
   const grouped = Object.values(map.nodes).filter(n => n.group);
   grouped.sort((a,b) => nodeDepth(map,a) - nodeDepth(map,b));
   for(const n of grouped){
-    const b = subtreeBox(map, n.id);
+    const b = groupBox(map, n.id);
     const pad = 18, padTop = n.group.label ? 38 : 18;
     const g = document.createElementNS(SVGNS,'g');
     g.setAttribute('pointer-events','none');
@@ -1268,7 +1441,10 @@ function endPointer(e){
   if(map && !drag.moved && Date.now()-drag.t < 700){
     if(drag.type === 'node'){
       const id = drag.id;
-      if(linkFrom){
+      if(groupJoinFrom){
+        if(id !== groupJoinFrom) joinGroup(groupJoinFrom, id);
+        groupJoinFrom = null; hideHint();
+      }else if(linkFrom){
         if(id !== linkFrom) createLink(linkFrom, id);
         linkFrom = null; hideHint();
       }else if(lastTap.id === id && Date.now()-lastTap.t < 380){
@@ -1278,6 +1454,9 @@ function endPointer(e){
         sel = id; lastTap = {t:Date.now(), id};
         renderMap(); renderSelBar();
       }
+    }else if(groupJoinFrom){
+      groupJoinFrom = null; hideHint();
+      showHint('그룹 넣기를 취소했어요', 1500);
     }else if(linkFrom){
       linkFrom = null; hideHint();
       showHint('연결을 취소했어요', 1500);
@@ -1290,6 +1469,7 @@ function endPointer(e){
   }
   if(drag.moved) save();
   drag = null;
+  if(pendingRemote){ const p = pendingRemote; pendingRemote = null; applyRemote(p); }
 }
 svg.addEventListener('pointerup', endPointer);
 svg.addEventListener('pointercancel', endPointer);
@@ -1312,6 +1492,10 @@ function renderSelBar(){
   if(map.kind === 'trip' && n.type !== 'root') html += btn('cal','일정에 추가','toplan');
   html += btn('link','연결','link');
   html += btn('group', n.group ? '그룹 해제' : '그룹', 'group');
+  if(!n.group){
+    if(n.groupId) html += btn('group','그룹에서 빼기','ungroupJoin');
+    else if(Object.values(map.nodes).some(x => x.group && x.id !== n.id)) html += btn('group','그룹에 넣기','groupJoin');
+  }
   if(n.type !== 'root') html += btn('trash','삭제','del','danger');
   bar.innerHTML = html;
   bar.classList.add('show');
@@ -1323,6 +1507,8 @@ function renderSelBar(){
     else if(fn === 'toplan') sendToPlan(sel);
     else if(fn === 'link') startLink();
     else if(fn === 'group') toggleGroup();
+    else if(fn === 'groupJoin') startJoinGroup();
+    else if(fn === 'ungroupJoin') leaveGroup();
     else if(fn === 'del') deleteNode();
   }));
 }
@@ -1332,6 +1518,7 @@ function toggleGroup(){
   const map = curMap(); const n = map && map.nodes[sel]; if(!n) return;
   if(n.group){
     delete n.group;
+    Object.values(map.nodes).forEach(x => { if(x.groupId === n.id) delete x.groupId; });
     showHint('그룹을 해제했어요', 1500);
   }else{
     const label = prompt('그룹 이름 (비워두면 이름 없이 묶여요)', '');
@@ -1340,6 +1527,33 @@ function toggleGroup(){
     showHint('이 노드와 하위 노드가 그룹으로 묶였어요', 2200);
   }
   save(); renderMap(); renderSelBar();
+}
+/* 다른 그룹에 노드 담기: 대상 노드 선택 → 그룹(영역)의 노드를 탭 */
+function startJoinGroup(){
+  if(!sel) return;
+  groupJoinFrom = sel;
+  showHint('넣을 그룹의 노드(점선 영역 안)를 탭하세요 · 빈 곳 탭: 취소', 0);
+}
+function joinGroup(nodeId, targetId){
+  const map = curMap(); if(!map) return;
+  const n = map.nodes[nodeId]; if(!n) return;
+  const ownerId = groupOwnerOf(map, targetId);
+  if(!ownerId){ showHint('그룹이 없는 노드예요. 그룹 노드를 탭하세요', 2200); return; }
+  if(ownerId === nodeId){ showHint('자기 그룹에는 넣을 수 없어요', 1800); return; }
+  // 이미 서브트리로 포함되어 있으면 중복 지정 불필요
+  let p = n, guard = 0, inside = false;
+  while(p && guard++ < 50){ if(p.id === ownerId){ inside = true; break; } p = map.nodes[p.parentId]; }
+  if(inside){ showHint('이미 그 그룹에 포함된 노드예요', 1800); return; }
+  n.groupId = ownerId;
+  sel = nodeId;
+  save(); renderMap(); renderSelBar();
+  showHint('그룹에 담았어요', 1500);
+}
+function leaveGroup(){
+  const map = curMap(); const n = map && map.nodes[sel]; if(!n || !n.groupId) return;
+  delete n.groupId;
+  save(); renderMap(); renderSelBar();
+  showHint('그룹에서 뺐어요', 1500);
 }
 
 /* ════════════════ 교차 연결선 ════════════════ */
@@ -1412,6 +1626,7 @@ function deleteNode(){
   if(toDel.length > 1 && !confirm(`하위 노드 ${toDel.length-1}개도 함께 삭제됩니다. 계속할까요?`)) return;
   toDel.forEach(id => delete map.nodes[id]);
   map.links = (map.links || []).filter(l => !toDel.includes(l.from) && !toDel.includes(l.to));
+  Object.values(map.nodes).forEach(n => { if(n.groupId && !map.nodes[n.groupId]) delete n.groupId; });
   sel = null;
   save(); renderMap(); renderSelBar(); closeSheets();
 }
@@ -1536,6 +1751,42 @@ function openPlan(){
 function closePlan(){ closeSheets(); show('scrMap'); renderMap(); renderSelBar(); }
 function openTripInfo(){ const map = curMap(); if(map) openEdit(map.rootId); }
 
+/* 플래너 상단 달력: 여행 날짜를 월 캘린더에 표시 */
+function renderPlanCal(map){
+  const days = map.plan.days.filter(d => d.date);
+  if(!days.length) return '';
+  const byDate = {};
+  map.plan.days.forEach((d,i) => { if(d.date) byDate[d.date] = {idx:i+1, id:d.id, color:PALETTE[(i+1)%PALETTE.length]}; });
+  const rng = planRange(map);
+  const s = new Date(rng.start+'T00:00:00'), e = new Date(rng.end+'T00:00:00');
+  if(isNaN(s) || isNaN(e)) return '';
+  const todayYMD = toYMD(new Date());
+  let html = '';
+  let cur = new Date(s.getFullYear(), s.getMonth(), 1);
+  let guard = 0;
+  while(cur <= e && guard++ < 6){
+    const y = cur.getFullYear(), mo = cur.getMonth();
+    html += `<div class="pcal-wrap"><div class="pcal-title">${y}년 ${mo+1}월</div><div class="pcal-grid">`;
+    html += DAY_NAMES.map(w => `<span class="pcal-wd">${w}</span>`).join('');
+    const first = new Date(y, mo, 1).getDay();
+    const last = new Date(y, mo+1, 0).getDate();
+    for(let i=0; i<first; i++) html += `<span class="pcal-cell"></span>`;
+    for(let d=1; d<=last; d++){
+      const ymd = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const t = byDate[ymd];
+      const cls = `pcal-cell${t ? ' trip' : ''}${ymd === todayYMD ? ' today' : ''}`;
+      if(t){
+        html += `<span class="${cls}" data-goto="${t.id}" style="background:${t.color};color:${tone(t.color)}">${d}<span class="pcal-dayn">D${t.idx}</span></span>`;
+      }else{
+        html += `<span class="${cls}">${d}</span>`;
+      }
+    }
+    html += `</div></div>`;
+    cur = new Date(y, mo+1, 1);
+  }
+  return html;
+}
+
 function renderPlan(){
   const map = curMap(); if(!map || !map.plan) return;
   sortPlan(map);
@@ -1547,25 +1798,31 @@ function renderPlan(){
     <div class="ih-meta">${p.dest ? esc(p.dest)+' · ' : ''}${rng.start ? fmtShort(rng.start)+' ~ '+fmtShort(rng.end)+' · ' : ''}${p.days.length}일</div>
     <div class="itin-total"><span>총 예상 경비</span><span>${fmtWon(planTotal(map))}</span></div>
   </div>`;
+  html += renderPlanCal(map);
+  const renderItem = (it, depth) => {
+    const c = CATS[it.cat] || CATS.etc;
+    const subSum = itemSum(it) - (Number(it.cost)||0);
+    let row = `<div class="itin-item ${depth ? 'sub' : ''}" data-item="${it.id}" style="margin-left:${depth*20}px">
+      <div class="ii-time ${it.time ? '' : 'no-time'}">${it.time ? esc(it.time) : '—'}</div>
+      <div class="ii-main">
+        <div class="ii-title">${esc(it.text)}<span class="cat-badge"><i style="background:${c.fg}"></i>${c.label}</span></div>
+        ${it.memo ? `<div class="ii-memo">${esc(it.memo)}</div>` : ''}
+        ${(it.cost || subSum) ? `<div class="ii-cost">💰 ${fmtWon(it.cost)}${subSum ? ` <span style="font-weight:400">(하위 포함 ${fmtWon(itemSum(it))})</span>` : ''}</div>` : ''}
+      </div>
+      ${depth < 2 ? `<button class="ii-addsub" data-addsub="${it.id}" title="하위 일정 추가">＋</button>` : ''}
+    </div>`;
+    row += (it.subs||[]).map(s => renderItem(s, depth+1)).join('');
+    return row;
+  };
   p.days.forEach((d, i) => {
-    const daySum = d.items.reduce((s,it) => s + (Number(it.cost)||0), 0);
-    html += `<div class="itin-day">
+    const daySum = d.items.reduce((s,it) => s + itemSum(it), 0);
+    html += `<div class="itin-day" data-daycard="${d.id}">
       <div class="itin-day-head" data-dayedit="${d.id}" style="cursor:pointer">
         <span style="color:${strokeTone(PALETTE[(i+1)%PALETTE.length])}">Day ${i+1}</span>
         <span style="font-weight:500;font-size:12.5px;color:var(--sub)">${fmtShort(d.date)}${d.note ? ' · '+esc(d.note) : ''}</span>
         <span class="id-sum">${daySum ? fmtWon(daySum) : ''}</span>
       </div>
-      ${d.items.length ? d.items.map(it => {
-        const c = CATS[it.cat] || CATS.etc;
-        return `<div class="itin-item" data-item="${it.id}">
-          <div class="ii-time ${it.time ? '' : 'no-time'}">${it.time ? esc(it.time) : '—'}</div>
-          <div class="ii-main">
-            <div class="ii-title">${esc(it.text)}<span class="cat-badge"><i style="background:${c.fg}"></i>${c.label}</span></div>
-            ${it.memo ? `<div class="ii-memo">${esc(it.memo)}</div>` : ''}
-            ${it.cost ? `<div class="ii-cost">💰 ${fmtWon(it.cost)}</div>` : ''}
-          </div>
-        </div>`;
-      }).join('') : '<div class="itin-empty">일정이 없어요 · 마인드맵에서 노드를 선택해 보낼 수도 있어요</div>'}
+      ${d.items.length ? d.items.map(it => renderItem(it, 0)).join('') : '<div class="itin-empty">일정이 없어요 · 마인드맵에서 노드를 선택해 보낼 수도 있어요</div>'}
       <button class="itin-add" data-additem="${d.id}">＋ 일정 추가</button>
     </div>`;
   });
@@ -1575,9 +1832,19 @@ function renderPlan(){
   body.querySelectorAll('[data-dayedit]').forEach(el =>
     el.addEventListener('click', () => openPlanDay(el.dataset.dayedit)));
   body.querySelectorAll('[data-item]').forEach(el =>
-    el.addEventListener('click', () => openPlanItem(null, el.dataset.item)));
+    el.addEventListener('click', () => openPlanItem({itemId: el.dataset.item})));
   body.querySelectorAll('[data-additem]').forEach(el =>
-    el.addEventListener('click', () => openPlanItem(el.dataset.additem, null)));
+    el.addEventListener('click', () => openPlanItem({dayId: el.dataset.additem})));
+  body.querySelectorAll('[data-addsub]').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); openPlanItem({parentId: el.dataset.addsub}); }));
+  body.querySelectorAll('[data-goto]').forEach(el =>
+    el.addEventListener('click', () => {
+      const card = body.querySelector(`[data-daycard="${el.dataset.goto}"]`);
+      if(!card) return;
+      card.scrollIntoView({behavior:'smooth', block:'start'});
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 1200);
+    }));
   const ad = document.getElementById('planAddDay');
   if(ad) ad.addEventListener('click', addPlanDay);
 }
@@ -1621,26 +1888,34 @@ function deletePlanDay(){
   save(); closeSheets(); renderPlan();
 }
 
-let pitemId = null;
-function openPlanItem(dayId, itemId, prefillText){
+/* 일정 편집 컨텍스트: itemId(수정) 또는 dayId/parentId(추가) */
+let pitemCtx = null;
+function openPlanItem(opts){
   const map = curMap(); if(!map || !map.plan) return;
+  const o = opts || {};
   sortPlan(map);
   if(!map.plan.days.length) map.plan.days.push({id:uid(), date:toYMD(new Date()), note:'', items:[]});
-  let it = null, day = null;
-  if(itemId){
-    for(const d of map.plan.days){ const x = d.items.find(y => y.id === itemId); if(x){ it = x; day = d; break; } }
-    if(!it) return;
+  let it = null, day = null, depth = 0, parentId = o.parentId || null;
+  if(o.itemId){
+    const found = findPlanItem(map, o.itemId); if(!found) return;
+    it = found.item; day = found.day; depth = found.depth;
+    parentId = found.parent ? found.parent.id : null;
+  }else if(parentId){
+    const found = findPlanItem(map, parentId); if(!found) return;
+    day = found.day; depth = Math.min(found.depth + 1, 2);
   }else{
-    day = map.plan.days.find(d => d.id === dayId) || map.plan.days[0];
+    day = map.plan.days.find(d => d.id === o.dayId) || map.plan.days[0];
   }
-  pitemId = it ? it.id : null;
-  document.getElementById('pitemTitle').textContent = it ? '📍 일정 편집' : '📍 일정 추가';
+  pitemCtx = {itemId: it ? it.id : null, parentId};
+  document.getElementById('pitemTitle').textContent = `📍 ${DEPTH_NAMES[depth]} 일정 ${it ? '편집' : '추가'}`;
   const form = document.getElementById('pitemSheet').querySelector('form');
+  // 하위 일정은 상위 일정을 따라가므로 날짜 선택은 대분류에서만
+  document.getElementById('pitemDayField').style.display = parentId ? 'none' : '';
   document.getElementById('pitemDay').innerHTML = map.plan.days.map((d,i) =>
     `<option value="${d.id}" ${d.id===day.id?'selected':''}>Day ${i+1} · ${fmtShort(d.date)||'날짜 미정'}</option>`).join('');
   document.getElementById('pitemCat').innerHTML = Object.entries(CATS).map(([k,v]) =>
     `<option value="${k}" ${k===(it ? it.cat : 'sight')?'selected':''}>${v.emoji} ${v.label}</option>`).join('');
-  form.querySelector('input[name=text]').value = it ? it.text : (prefillText || '');
+  form.querySelector('input[name=text]').value = it ? it.text : (o.prefill || '');
   form.querySelector('input[name=time]').value = it ? (it.time||'') : '';
   form.querySelector('input[name=cost]').value = it && it.cost ? it.cost : '';
   form.querySelector('textarea[name=memo]').value = it ? (it.memo||'') : '';
@@ -1649,21 +1924,32 @@ function openPlanItem(dayId, itemId, prefillText){
     <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
     <button type="submit" class="primary-btn">저장</button>`;
   openSheet('pitemSheet');
-  if(!it && !prefillText) form.querySelector('input[name=text]').focus();
+  if(!it && !o.prefill) form.querySelector('input[name=text]').focus();
 }
 function savePlanItem(form){
-  const map = curMap(); if(!map || !map.plan) return false;
+  const map = curMap(); if(!map || !map.plan || !pitemCtx) return false;
   const f = new FormData(form);
-  const day = map.plan.days.find(d => d.id === f.get('day')) || map.plan.days[0];
-  if(!day) return false;
   let it = null;
-  if(pitemId){
-    let from = null;
-    for(const d of map.plan.days){ const x = d.items.find(y => y.id === pitemId); if(x){ it = x; from = d; break; } }
-    if(!it) return false;
-    if(from !== day){ from.items = from.items.filter(x => x.id !== it.id); day.items.push(it); }
+  if(pitemCtx.itemId){
+    const found = findPlanItem(map, pitemCtx.itemId); if(!found) return false;
+    it = found.item;
+    // 대분류만 다른 Day로 이동 가능
+    if(!found.parent){
+      const day = map.plan.days.find(d => d.id === f.get('day'));
+      if(day && day !== found.day){
+        found.day.items = found.day.items.filter(x => x.id !== it.id);
+        day.items.push(it);
+      }
+    }
+  }else if(pitemCtx.parentId){
+    const found = findPlanItem(map, pitemCtx.parentId); if(!found) return false;
+    if(!Array.isArray(found.item.subs)) found.item.subs = [];
+    it = {id: uid(), subs: []};
+    found.item.subs.push(it);
   }else{
-    it = {id: uid()};
+    const day = map.plan.days.find(d => d.id === f.get('day')) || map.plan.days[0];
+    if(!day) return false;
+    it = {id: uid(), subs: []};
     day.items.push(it);
   }
   it.text = String(f.get('text')||'').trim() || '새 일정';
@@ -1678,8 +1964,12 @@ function savePlanItem(form){
   return false;
 }
 function deletePlanItem(){
-  const map = curMap(); if(!map || !map.plan || !pitemId) return;
-  map.plan.days.forEach(d => { d.items = d.items.filter(x => x.id !== pitemId); });
+  const map = curMap(); if(!map || !map.plan || !pitemCtx || !pitemCtx.itemId) return;
+  const found = findPlanItem(map, pitemCtx.itemId); if(!found) return;
+  if((found.item.subs||[]).length && !confirm(`하위 일정 ${found.item.subs.length}개도 함께 삭제됩니다. 계속할까요?`)) return;
+  const arr = found.parent ? found.parent.subs : found.day.items;
+  const i = arr.findIndex(x => x.id === pitemCtx.itemId);
+  if(i >= 0) arr.splice(i, 1);
   save(); closeSheets();
   if(planActive()) renderPlan();
 }
@@ -1687,7 +1977,7 @@ function deletePlanItem(){
 function sendToPlan(id){
   const map = curMap(); if(!map || map.kind !== 'trip' || !map.plan) return;
   const n = map.nodes[id]; if(!n) return;
-  openPlanItem(null, null, n.text || '');
+  openPlanItem({prefill: n.text || ''});
 }
 
 /* ════════════════ 모달 열기/닫기 ════════════════ */
@@ -1738,6 +2028,244 @@ document.addEventListener('keydown', e => {
   else if(e.key === 'Escape'){ sel = null; renderMap(); renderSelBar(); }
 });
 
+/* ════════════════ 클라우드 동기화 · 공유 (Firebase — 투두 캘린더와 같은 프로젝트) ════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyDUEaTTcv6pwxnKxc4PMYrv2RbOuSy02bw",
+  authDomain: "nahyoni-todo.firebaseapp.com",
+  projectId: "nahyoni-todo",
+  storageBucket: "nahyoni-todo.firebasestorage.app",
+  messagingSenderId: "1095838509318",
+  appId: "1:1095838509318:web:f807ed15083a6c72d01687"
+};
+const cloud = {
+  on:false, me:null, viewingUid:null, viewingName:'',
+  unsubs:[], pushT:null, lastPushed:{}, lastTopics:'',
+  sharedWith:[], sharedMaps:[]
+};
+let fbAuth = null, fbDb = null;
+try{
+  if(window.firebase){
+    firebase.initializeApp(firebaseConfig);
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+    cloud.on = true;
+  }
+}catch(e){ cloud.on = false; }
+function isShared(){ return !!cloud.viewingUid; }
+const workUid = () => cloud.viewingUid || (cloud.me && cloud.me.uid);
+/* 모든 앱 데이터는 users/{uid}/mindmaps 아래: 맵 문서들 + '_meta'(주제 트리) */
+const mapsCol = uid0 => fbDb.collection('users').doc(uid0).collection('mindmaps');
+
+if(cloud.on){
+  fbAuth.onAuthStateChanged(async user => {
+    cloud.me = user;
+    if(user){
+      renderAvatar();
+      try{
+        await fbDb.collection('users').doc(user.uid).set(
+          {email:user.email, name:user.displayName||user.email, photo:user.photoURL||''}, {merge:true});
+        const joinUid = new URLSearchParams(location.search).get('join');
+        if(joinUid && joinUid !== user.uid){
+          await handleJoin(joinUid);
+          history.replaceState({}, '', location.pathname);
+        }
+        await firstSyncMigrate();
+      }catch(e){ /* 오프라인이면 로컬 데이터로 계속 */ }
+      startCloudListeners();
+      goHome();
+    }else{
+      stopCloudListeners();
+      cloud.viewingUid = null; cloud.viewingName = '';
+      document.getElementById('viewingBanner').classList.remove('on');
+      document.getElementById('userAvatar').classList.remove('on');
+      renderShareUI();
+      show('scrLogin');
+    }
+  });
+  document.getElementById('googleLoginBtn').addEventListener('click', () =>
+    fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => alert('로그인 실패: ' + e.message)));
+}
+function doSignOut(){
+  if(!cloud.on) return;
+  if(confirm('로그아웃할까요?')) fbAuth.signOut();
+}
+function renderAvatar(){
+  const av = document.getElementById('userAvatar');
+  if(!cloud.me){ av.classList.remove('on'); return; }
+  av.classList.add('on');
+  av.innerHTML = cloud.me.photoURL ? `<img src="${cloud.me.photoURL}">` : esc((cloud.me.displayName || cloud.me.email || '?')[0].toUpperCase());
+  av.onclick = () => {
+    const b = document.querySelector('.bottom-nav .nav-item[data-view=viewSettings]');
+    if(b) b.click();
+  };
+}
+
+/* ── 최초 로그인: 클라우드가 비어 있으면 로컬 데이터 업로드 ── */
+const cleanJSON = v => JSON.parse(JSON.stringify(v));
+async function firstSyncMigrate(){
+  const snap = await mapsCol(cloud.me.uid).limit(1).get();
+  if(snap.empty && (state.maps.length || state.topics.length)){
+    const batch = fbDb.batch();
+    state.maps.forEach(m => batch.set(mapsCol(cloud.me.uid).doc(m.id), cleanJSON(m)));
+    batch.set(mapsCol(cloud.me.uid).doc('_meta'), {topics: cleanJSON(state.topics)});
+    await batch.commit();
+    state.maps.forEach(m => cloud.lastPushed[m.id] = JSON.stringify(m));
+    cloud.lastTopics = JSON.stringify(state.topics);
+  }
+}
+
+/* ── 내보내기: save()마다 디바운스 후 바뀐 문서만 push ── */
+function scheduleCloudPush(){
+  if(!cloud.on || !cloud.me) return;
+  clearTimeout(cloud.pushT);
+  cloud.pushT = setTimeout(pushDiff, 700);
+}
+function pushDiff(){
+  const uid0 = workUid(); if(!uid0) return;
+  const batch = fbDb.batch();
+  let dirty = false;
+  const ids = new Set();
+  state.maps.forEach(m => {
+    ids.add(m.id);
+    const j = JSON.stringify(m);
+    if(cloud.lastPushed[m.id] !== j){
+      batch.set(mapsCol(uid0).doc(m.id), JSON.parse(j));
+      cloud.lastPushed[m.id] = j;
+      dirty = true;
+    }
+  });
+  Object.keys(cloud.lastPushed).forEach(id => {
+    if(!ids.has(id)){
+      batch.delete(mapsCol(uid0).doc(id));
+      delete cloud.lastPushed[id];
+      dirty = true;
+    }
+  });
+  const tj = JSON.stringify(state.topics);
+  if(cloud.lastTopics !== tj){
+    batch.set(mapsCol(uid0).doc('_meta'), {topics: JSON.parse(tj)});
+    cloud.lastTopics = tj;
+    dirty = true;
+  }
+  if(dirty) batch.commit().catch(() => {});  // 오프라인이면 SDK가 재연결 시 전송
+}
+
+/* ── 들여오기: 스냅샷 → state 반영 (드래그 중엔 보류) ── */
+let pendingRemote = null;
+function startCloudListeners(){
+  stopCloudListeners();
+  const uid0 = workUid(); if(!uid0) return;
+  cloud.unsubs.push(mapsCol(uid0).onSnapshot(snap => {
+    if(snap.metadata.fromCache) return;   // 오프라인 캐시로 로컬 데이터를 덮어쓰지 않음
+    const maps = [];
+    let topics = null;
+    snap.forEach(doc => {
+      if(doc.id === '_meta') topics = (doc.data()||{}).topics || [];
+      else maps.push(doc.data());
+    });
+    applyRemote({maps, topics});
+  }, () => {}));
+  cloud.unsubs.push(fbDb.collection('users').doc(cloud.me.uid).collection('mmSharedWith').onSnapshot(snap => {
+    cloud.sharedWith = []; snap.forEach(d => cloud.sharedWith.push({...d.data(), docId:d.id}));
+    renderShareUI();
+  }, () => {}));
+  cloud.unsubs.push(fbDb.collection('users').doc(cloud.me.uid).collection('mmShared').onSnapshot(snap => {
+    cloud.sharedMaps = []; snap.forEach(d => cloud.sharedMaps.push(d.data()));
+    renderShareUI();
+  }, () => {}));
+}
+function stopCloudListeners(){ cloud.unsubs.forEach(u => u()); cloud.unsubs = []; }
+function applyRemote(part){
+  if(drag){ pendingRemote = part; return; }
+  // 에코 재푸시 방지용 트래커 갱신
+  part.maps.forEach(m => cloud.lastPushed[m.id] = JSON.stringify(m));
+  Object.keys(cloud.lastPushed).forEach(id => { if(!part.maps.some(m => m.id === id)) delete cloud.lastPushed[id]; });
+  if(part.topics) cloud.lastTopics = JSON.stringify(part.topics);
+  let changed = false;
+  if(JSON.stringify(state.maps) !== JSON.stringify(part.maps)){ state.maps = part.maps; changed = true; }
+  if(part.topics && JSON.stringify(state.topics) !== JSON.stringify(part.topics)){ state.topics = part.topics; changed = true; }
+  if(!changed) return;
+  state = normalize(state);
+  if(!isShared()) saveLocalOnly();
+  if(curMapId && !curMap()){ goHome(); return; }
+  if(curMap()){
+    renderMap(); renderSelBar();
+    if(planActive()) renderPlan();
+  }else{
+    renderHome();
+  }
+}
+
+/* ── 공유: ?join= 링크로 참여, 공유받은 맵은 함께 수정 가능 ── */
+async function handleJoin(ownerUid){
+  const od = await fbDb.collection('users').doc(ownerUid).get();
+  const oData = od.data() || {};
+  const oName = oData.name || oData.email || '알 수 없음';
+  await fbDb.collection('users').doc(ownerUid).collection('mmSharedWith').doc(cloud.me.uid).set(
+    {email:cloud.me.email, name:cloud.me.displayName||cloud.me.email, photo:cloud.me.photoURL||'',
+     joinedAt:firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
+  await fbDb.collection('users').doc(cloud.me.uid).collection('mmShared').doc(ownerUid).set(
+    {ownerUid, ownerEmail:oData.email||'', ownerName:oName, ownerPhoto:oData.photo||'',
+     joinedAt:firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
+  alert(`${oName}님의 마인드맵에 참여했어요!\n설정 → 공유받은 마인드맵에서 들어갈 수 있어요.`);
+}
+function enterShared(ownerUid, ownerName){
+  clearTimeout(cloud.pushT);
+  cloud.viewingUid = ownerUid;
+  cloud.viewingName = ownerName || '';
+  cloud.lastPushed = {}; cloud.lastTopics = '';
+  state.maps = []; state.topics = [];
+  document.getElementById('viewingLabel').textContent = `${cloud.viewingName}님의 마인드맵 편집 중`;
+  document.getElementById('viewingBanner').classList.add('on');
+  startCloudListeners();
+  goHome();
+}
+function leaveShared(){
+  clearTimeout(cloud.pushT);
+  cloud.viewingUid = null; cloud.viewingName = '';
+  cloud.lastPushed = {}; cloud.lastTopics = '';
+  document.getElementById('viewingBanner').classList.remove('on');
+  state = normalize(load() || {topics:[], maps:[]});
+  startCloudListeners();
+  goHome();
+}
+function copyShareLink(){
+  const link = `${location.origin}${location.pathname}?join=${cloud.me.uid}`;
+  navigator.clipboard.writeText(link).then(() => alert('링크를 복사했어요!'))
+    .catch(() => prompt('아래 링크를 복사하세요', link));
+}
+function renderShareUI(){
+  const on = cloud.on && !!cloud.me;
+  ['secAccount','secShare','secSharedWith','secSharedMaps'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.style.display = on ? '' : 'none';
+  });
+  if(!on) return;
+  document.getElementById('myAccountRow').innerHTML = `
+    <div class="su-av">${cloud.me.photoURL ? `<img src="${cloud.me.photoURL}">` : esc((cloud.me.displayName||'?')[0].toUpperCase())}</div>
+    <div class="su-info"><div class="su-name">${esc(cloud.me.displayName||'')}</div><div class="su-email">${esc(cloud.me.email||'')}</div></div>`;
+  document.getElementById('shareLinkText').textContent = `${location.origin}${location.pathname}?join=${cloud.me.uid}`;
+  const sw = document.getElementById('sharedWithList');
+  sw.innerHTML = cloud.sharedWith.length ? cloud.sharedWith.map(u => `
+    <div class="su-item">
+      <div class="su-av">${u.photo ? `<img src="${u.photo}">` : esc((u.name||'?')[0].toUpperCase())}</div>
+      <div class="su-info"><div class="su-name">${esc(u.name||'')}</div><div class="su-email">${esc(u.email||'')}</div></div>
+      <button class="remove-btn" data-rm="${u.docId}">해제</button>
+    </div>`).join('') : '<div class="empty-sec">아직 공유한 사람이 없어요</div>';
+  sw.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
+    if(!confirm('이 사람과의 공유를 해제할까요?')) return;
+    await fbDb.collection('users').doc(cloud.me.uid).collection('mmSharedWith').doc(b.dataset.rm).delete().catch(() => {});
+  }));
+  const sm = document.getElementById('sharedMapsList');
+  sm.innerHTML = cloud.sharedMaps.length ? cloud.sharedMaps.map(c => `
+    <div class="su-item">
+      <div class="su-av">${c.ownerPhoto ? `<img src="${c.ownerPhoto}">` : esc((c.ownerName||'?')[0].toUpperCase())}</div>
+      <div class="su-info"><div class="su-name">${esc(c.ownerName||'')}</div><div class="su-email">${esc(c.ownerEmail||'')}</div></div>
+      <button class="view-cal-btn" data-enter="${c.ownerUid}" data-name="${esc(c.ownerName||'')}">들어가기</button>
+    </div>`).join('') : '<div class="empty-sec">공유받은 마인드맵이 없어요</div>';
+  sm.querySelectorAll('[data-enter]').forEach(b => b.addEventListener('click', () =>
+    enterShared(b.dataset.enter, b.dataset.name)));
+}
+
 /* ════════════════ PWA 서비스워커 ════════════════ */
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -1762,7 +2290,9 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
     b.addEventListener('click', () => { state.theme = b.dataset.t; save(); applyTheme(); }));
   applyTheme();
   renderHome();
-  show('scrHome');
+  renderShareUI();
+  // 클라우드 사용 가능하면 로그인 게이트, 아니면(오프라인 등) 로컬 모드로 바로 진입
+  show(cloud.on ? 'scrLogin' : 'scrHome');
 })();
 </script>
 </body>
