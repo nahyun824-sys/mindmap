@@ -1807,6 +1807,8 @@ function deleteNode(){
 function autoLayout(){
   const map = curMap(); if(!map) return;
   const GX = 270, GAP = 16, MIN = 54;
+  // 드래그로 옮긴 현재 위치(세로 순서)를 그대로 유지하며 정돈
+  const kids = id => childrenOf(map, id).sort((a,b) => a.y - b.y || a.x - b.x);
   function h(id){
     const ch = childrenOf(map, id);
     if(!ch.length) return MIN;
@@ -1817,7 +1819,7 @@ function autoLayout(){
     const H = h(id);
     n.x = x; n.y = Math.round(top + H/2);
     let ty = top;
-    for(const c of childrenOf(map, id)){
+    for(const c of kids(id)){
       const cH = h(c.id);
       place(c.id, x + GX, ty);
       ty += cH + GAP;
