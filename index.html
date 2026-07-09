@@ -614,6 +614,15 @@
   <h3 id="pitemTitle">📍 일정</h3>
   <form onsubmit="return savePlanItem(this)">
     <div class="field"><label>일정 내용</label><input name="text" required></div>
+    <div class="field" id="pitemDepthField" style="display:none">
+      <label>단계</label>
+      <select id="pitemDepth">
+        <option value="0">대분류 (Day 바로 아래)</option>
+        <option value="1">중분류 (대분류 아래)</option>
+        <option value="2">소분류 (중분류 아래)</option>
+      </select>
+    </div>
+    <div class="field" id="pitemParentField" style="display:none"><label>상위 일정</label><select id="pitemParent"></select></div>
     <div class="field-row">
       <div class="field" id="pitemDayField"><label>날짜</label><select name="day" id="pitemDay"></select></div>
       <div class="field"><label>시간</label><input name="time" type="time"></div>
@@ -737,6 +746,7 @@ let sel = null;
 let searchQ = '';
 let linkFrom = null;      // 연결 모드: 시작 노드 id
 let groupJoinFrom = null; // 그룹에 넣기 모드: 대상 노드 id
+let groupEditFor = null;  // 그룹 멤버 편집 모드: 그룹 소유 노드 id
 
 function normalize(s){
   if(!Array.isArray(s.topics)) s.topics = [];
@@ -915,7 +925,7 @@ function show(scr){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(scr).classList.add('active');
 }
-function goHome(){ curMapId = null; sel = null; linkFrom = null; groupJoinFrom = null; closeSheets(); renderHome(); show('scrHome'); }
+function goHome(){ curMapId = null; sel = null; linkFrom = null; groupJoinFrom = null; groupEditFor = null; closeSheets(); renderHome(); show('scrHome'); }
 function showHint(msg, ms = 4000){
   const h = document.getElementById('mmHint');
   h.textContent = msg;
@@ -925,7 +935,7 @@ function showHint(msg, ms = 4000){
 }
 function hideHint(){ clearTimeout(showHint._t); document.getElementById('mmHint').style.opacity = '0'; }
 function openMap(id){
-  curMapId = id; sel = null; linkFrom = null; groupJoinFrom = null;
+  curMapId = id; sel = null; linkFrom = null; groupJoinFrom = null; groupEditFor = null;
   show('scrMap');
   const map = curMap();
   document.getElementById('tbTitle').textContent = map.name;
@@ -1449,7 +1459,9 @@ function endPointer(e){
   if(map && !drag.moved && Date.now()-drag.t < 700){
     if(drag.type === 'node'){
       const id = drag.id;
-      if(groupJoinFrom){
+      if(groupEditFor){
+        toggleMember(groupEditFor, id);   // 모드 유지 — 연속으로 넣고 빼기
+      }else if(groupJoinFrom){
         if(id !== groupJoinFrom) joinGroup(groupJoinFrom, id);
         groupJoinFrom = null; hideHint();
       }else if(linkFrom){
@@ -1462,6 +1474,10 @@ function endPointer(e){
         sel = id; lastTap = {t:Date.now(), id};
         renderMap(); renderSelBar();
       }
+    }else if(groupEditFor){
+      groupEditFor = null; hideHint();
+      showHint('그룹 편집을 마쳤어요', 1500);
+      renderMap(); renderSelBar();
     }else if(groupJoinFrom){
       groupJoinFrom = null; hideHint();
       showHint('그룹 넣기를 취소했어요', 1500);
@@ -1500,6 +1516,7 @@ function renderSelBar(){
   if(map.kind === 'trip' && n.type !== 'root') html += btn('cal','일정에 추가','toplan');
   html += btn('link','연결','link');
   html += btn('group', n.group ? '그룹 해제' : '그룹', 'group');
+  if(n.group) html += btn('group','멤버 넣기/빼기','groupEdit');
   if(!n.group){
     if(n.groupId) html += btn('group','그룹에서 빼기','ungroupJoin');
     else if(Object.values(map.nodes).some(x => x.group && x.id !== n.id)) html += btn('group','그룹에 넣기','groupJoin');
@@ -1516,6 +1533,7 @@ function renderSelBar(){
     else if(fn === 'link') startLink();
     else if(fn === 'group') toggleGroup();
     else if(fn === 'groupJoin') startJoinGroup();
+    else if(fn === 'groupEdit') startGroupEdit();
     else if(fn === 'ungroupJoin') leaveGroup();
     else if(fn === 'del') deleteNode();
   }));
@@ -1562,6 +1580,32 @@ function leaveGroup(){
   delete n.groupId;
   save(); renderMap(); renderSelBar();
   showHint('그룹에서 뺐어요', 1500);
+}
+/* 그룹 노드를 선택한 뒤 멤버 편집 모드: 노드를 탭할 때마다 넣기/빼기 토글 */
+function startGroupEdit(){
+  const map = curMap(); const n = map && map.nodes[sel]; if(!n || !n.group) return;
+  groupEditFor = n.id;
+  showHint('노드를 탭해서 그룹에 넣거나 빼세요 · 빈 곳 탭: 완료', 0);
+}
+function toggleMember(ownerId, id){
+  const map = curMap(); if(!map) return;
+  const owner = map.nodes[ownerId], n = map.nodes[id];
+  if(!owner || !owner.group || !n){ groupEditFor = null; hideHint(); return; }
+  if(id === ownerId){ showHint('그룹의 중심 노드예요 · 빈 곳을 탭하면 완료', 2000); return; }
+  // 서브트리로 이미 포함되는 노드는 뺄 수 없음
+  let p = n, guard = 0;
+  while(p && guard++ < 50){
+    if(p.id === ownerId){ showHint('하위 노드라 항상 그룹에 포함돼요', 2000); return; }
+    p = map.nodes[p.parentId];
+  }
+  if(n.groupId === ownerId){
+    delete n.groupId;
+    showHint('그룹에서 뺐어요 · 계속 탭하거나 빈 곳 탭: 완료', 2500);
+  }else{
+    n.groupId = ownerId;
+    showHint('그룹에 넣었어요 · 계속 탭하거나 빈 곳 탭: 완료', 2500);
+  }
+  save(); renderMap();
 }
 
 /* ════════════════ 교차 연결선 ════════════════ */
@@ -1784,7 +1828,7 @@ function renderPlanCal(map){
       const t = byDate[ymd];
       const cls = `pcal-cell${t ? ' trip' : ''}${ymd === todayYMD ? ' today' : ''}`;
       if(t){
-        html += `<span class="${cls}" data-goto="${t.id}" style="background:${t.color};color:${tone(t.color)}">${d}<span class="pcal-dayn">D${t.idx}</span></span>`;
+        html += `<span class="${cls}" data-goto="${t.id}" style="background:${t.color}66;color:${strokeTone(t.color)}">${d}<span class="pcal-dayn">D${t.idx}</span></span>`;
       }else{
         html += `<span class="${cls}">${d}</span>`;
       }
@@ -1914,11 +1958,37 @@ function openPlanItem(opts){
   }else{
     day = map.plan.days.find(d => d.id === o.dayId) || map.plan.days[0];
   }
-  pitemCtx = {itemId: it ? it.id : null, parentId};
+  pitemCtx = {itemId: it ? it.id : null, parentId, chooseDepth: !!o.chooseDepth};
   document.getElementById('pitemTitle').textContent = `📍 ${DEPTH_NAMES[depth]} 일정 ${it ? '편집' : '추가'}`;
   const form = document.getElementById('pitemSheet').querySelector('form');
   // 하위 일정은 상위 일정을 따라가므로 날짜 선택은 대분류에서만
   document.getElementById('pitemDayField').style.display = parentId ? 'none' : '';
+  // 단계 선택 (마인드맵 노드에서 보낼 때): 대/중/소분류 + 상위 일정 고르기
+  const depthField = document.getElementById('pitemDepthField');
+  const parentField = document.getElementById('pitemParentField');
+  depthField.style.display = o.chooseDepth ? '' : 'none';
+  parentField.style.display = 'none';
+  if(o.chooseDepth){
+    const depthSel = document.getElementById('pitemDepth');
+    depthSel.value = '0';
+    const updateDepthUI = () => {
+      const dep = Number(depthSel.value) || 0;
+      document.getElementById('pitemTitle').textContent = `📍 ${DEPTH_NAMES[dep]} 일정 추가`;
+      document.getElementById('pitemDayField').style.display = dep === 0 ? '' : 'none';
+      parentField.style.display = dep === 0 ? 'none' : '';
+      if(dep === 0) return;
+      const cands = [];
+      map.plan.days.forEach((d,di) => d.items.forEach(t => {
+        if(dep === 1) cands.push({id:t.id, label:`Day ${di+1} · ${t.text}`});
+        else (t.subs||[]).forEach(s2 => cands.push({id:s2.id, label:`Day ${di+1} · ${t.text} › ${s2.text}`}));
+      }));
+      document.getElementById('pitemParent').innerHTML = cands.length
+        ? cands.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('')
+        : `<option value="">— ${DEPTH_NAMES[dep-1]} 일정이 아직 없어요 —</option>`;
+    };
+    depthSel.onchange = updateDepthUI;
+    updateDepthUI();
+  }
   document.getElementById('pitemDay').innerHTML = map.plan.days.map((d,i) =>
     `<option value="${d.id}" ${d.id===day.id?'selected':''}>Day ${i+1} · ${fmtShort(d.date)||'날짜 미정'}</option>`).join('');
   document.getElementById('pitemCat').innerHTML = Object.entries(CATS).map(([k,v]) =>
@@ -1949,6 +2019,13 @@ function savePlanItem(form){
         day.items.push(it);
       }
     }
+  }else if(pitemCtx.chooseDepth && Number(document.getElementById('pitemDepth').value) > 0){
+    const pid = document.getElementById('pitemParent').value;
+    const found = pid ? findPlanItem(map, pid) : null;
+    if(!found){ alert('상위 일정이 없어요. 먼저 상위 단계 일정을 만들어 주세요.'); return false; }
+    if(!Array.isArray(found.item.subs)) found.item.subs = [];
+    it = {id: uid(), subs: []};
+    found.item.subs.push(it);
   }else if(pitemCtx.parentId){
     const found = findPlanItem(map, pitemCtx.parentId); if(!found) return false;
     if(!Array.isArray(found.item.subs)) found.item.subs = [];
@@ -1985,7 +2062,7 @@ function deletePlanItem(){
 function sendToPlan(id){
   const map = curMap(); if(!map || map.kind !== 'trip' || !map.plan) return;
   const n = map.nodes[id]; if(!n) return;
-  openPlanItem({prefill: n.text || ''});
+  openPlanItem({prefill: n.text || '', chooseDepth: true});
 }
 
 /* ════════════════ 모달 열기/닫기 ════════════════ */
