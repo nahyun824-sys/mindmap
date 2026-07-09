@@ -503,6 +503,7 @@
   <div class="top-bar">
     <button class="nav-btn" id="btnBack" onclick="goHome()">‹</button>
     <div class="tb-title" id="tbTitle"></div>
+    <button class="nav-btn" id="btnGroups" onclick="openGroupSheet()" title="그룹 관리"></button>
     <button class="nav-btn" id="btnLayout" onclick="autoLayout()" title="자동 정돈"></button>
     <button class="nav-btn" id="btnItin" onclick="openPlan()" title="플래너"></button>
   </div>
@@ -593,6 +594,14 @@
       <button type="submit" class="primary-btn">저장</button>
     </div>
   </form>
+</div>
+
+<!-- 그룹 관리 -->
+<div class="sheet" id="groupSheet">
+  <h3>🗂️ 그룹 관리</h3>
+  <div class="sheet-body" id="groupList"></div>
+  <div class="set-note" style="margin-top:10px">새 그룹은 캔버스에서 노드를 선택한 뒤 <b>그룹</b> 버튼으로 만들 수 있어요.</div>
+  <div class="sheet-btns"><button class="plain-btn" style="flex:1" onclick="closeSheets()">닫기</button></div>
 </div>
 
 <!-- 플래너: Day 편집 -->
@@ -1581,6 +1590,65 @@ function leaveGroup(){
   save(); renderMap(); renderSelBar();
   showHint('그룹에서 뺐어요', 1500);
 }
+/* 그룹 관리 시트: 현재 맵의 그룹 목록에서 이름 변경·멤버 편집·해제 */
+function countGroupNodes(map, ownerId){
+  const seen = new Set();
+  const walk = id => {
+    if(seen.has(id) || !map.nodes[id]) return;
+    seen.add(id);
+    Object.values(map.nodes).forEach(c => { if(c.parentId === id) walk(c.id); });
+  };
+  walk(ownerId);
+  Object.values(map.nodes).forEach(n => { if(n.groupId === ownerId) walk(n.id); });
+  return seen.size;
+}
+function openGroupSheet(){
+  const map = curMap(); if(!map) return;
+  renderGroupSheet();
+  openSheet('groupSheet');
+}
+function renderGroupSheet(){
+  const map = curMap(); if(!map) return;
+  const groups = Object.values(map.nodes).filter(n => n.group);
+  const box = document.getElementById('groupList');
+  if(!groups.length){
+    box.innerHTML = '<div class="empty-sec">아직 그룹이 없어요</div>';
+    return;
+  }
+  box.innerHTML = groups.map(g => `
+    <div class="su-item">
+      <span style="width:15px;height:15px;border-radius:5px;background:${g.color};border:1.5px dashed ${strokeTone(g.color)};flex:0 0 auto"></span>
+      <div class="su-info">
+        <div class="su-name">${esc(g.group.label || '이름 없음')}</div>
+        <div class="su-email">${esc(g.text || '')} · 노드 ${countGroupNodes(map, g.id)}개</div>
+      </div>
+      <button class="remove-btn" data-grename="${g.id}">이름</button>
+      <button class="view-cal-btn" data-gedit="${g.id}">멤버 편집</button>
+      <button class="remove-btn" data-gdel="${g.id}" style="color:var(--red)">해제</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-grename]').forEach(b => b.addEventListener('click', () => {
+    const g = map.nodes[b.dataset.grename]; if(!g || !g.group) return;
+    const label = prompt('그룹 이름', g.group.label || '');
+    if(label === null) return;
+    g.group.label = label.trim();
+    save(); renderMap(); renderGroupSheet();
+  }));
+  box.querySelectorAll('[data-gedit]').forEach(b => b.addEventListener('click', () => {
+    const g = map.nodes[b.dataset.gedit]; if(!g || !g.group) return;
+    closeSheets();
+    sel = g.id;
+    renderMap(); renderSelBar();
+    startGroupEdit();
+  }));
+  box.querySelectorAll('[data-gdel]').forEach(b => b.addEventListener('click', () => {
+    const g = map.nodes[b.dataset.gdel]; if(!g || !g.group) return;
+    if(!confirm(`그룹 "${g.group.label || g.text || '이름 없음'}"을(를) 해제할까요?\n(노드는 삭제되지 않고 묶음만 풀려요)`)) return;
+    delete g.group;
+    Object.values(map.nodes).forEach(x => { if(x.groupId === g.id) delete x.groupId; });
+    save(); renderMap(); renderSelBar(); renderGroupSheet();
+  }));
+}
+
 /* 그룹 노드를 선택한 뒤 멤버 편집 모드: 노드를 탭할 때마다 넣기/빼기 토글 */
 function startGroupEdit(){
   const map = curMap(); const n = map && map.nodes[sel]; if(!n || !n.group) return;
@@ -1736,6 +1804,14 @@ function openEdit(id){
   }
   if(n.group){
     html += `<div class="field"><label>그룹 이름 (하위 노드를 묶는 영역에 표시)</label><input name="grouplabel" value="${esc(n.group.label||'')}" placeholder="예: 오전 일정, 아이디어 후보"></div>`;
+  }else if(n.type !== 'root'){
+    const groups = Object.values(map.nodes).filter(x => x.group && x.id !== n.id);
+    if(groups.length){
+      html += `<div class="field"><label>소속 그룹</label><select name="groupsel">
+        <option value="">없음</option>
+        ${groups.map(g => `<option value="${g.id}" ${n.groupId===g.id?'selected':''}>${esc(g.group.label || g.text || '이름 없음')}</option>`).join('')}
+      </select></div>`;
+    }
   }
   html += `<div class="field"><label>색상</label><div class="color-row">
     ${PALETTE.map(col => `<button type="button" class="color-dot ${col===n.color?'on':''}" style="background:${col}" data-col="${col}"></button>`).join('')}
@@ -1781,6 +1857,17 @@ function saveEdit(keepOpen){
   if(!n.text && n.type !== 'root') n.text = '새 노드';
   if(f.has('edge')) n.edgeLabel = String(f.get('edge')).trim();
   if(f.has('grouplabel') && n.group) n.group.label = String(f.get('grouplabel')).trim();
+  if(f.has('groupsel')){
+    const gid = f.get('groupsel');
+    if(gid && map.nodes[gid] && map.nodes[gid].group){
+      // 조상 그룹 안에 이미 들어 있으면 별도 멤버십 불필요
+      let p = n, guard = 0, inside = false;
+      while(p && guard++ < 50){ if(p.id === gid){ inside = true; break; } p = map.nodes[p.parentId]; }
+      if(inside) delete n.groupId; else n.groupId = gid;
+    }else{
+      delete n.groupId;
+    }
+  }
   if(n.type === 'root'){
     map.name = n.text;
     if(map.kind === 'trip' && map.plan && f.has('dest')) map.plan.dest = String(f.get('dest')||'').trim();
@@ -2366,6 +2453,7 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
 (function boot(){
   const set = (id, name, size) => { const el = document.getElementById(id); if(el) el.innerHTML = ic(name, size); };
   set('searchIc','search',16);
+  set('btnGroups','group',17);
   set('btnLayout','layout',17);
   set('btnItin','list',18);
   set('btnTripInfo','edit',16);
