@@ -1,4 +1,4 @@
-const CACHE = 'mindtrip-v11';
+const CACHE = 'mindtrip-v12';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -11,6 +11,19 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const isHTML = e.request.mode === 'navigate' || e.request.url.endsWith('/index.html');
+  if (isHTML) {
+    // HTML은 항상 네트워크 우선 → 배포 즉시 반영, 오프라인일 때만 캐시
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return res;
+      }).catch(() => caches.match(e.request).then(m => m || caches.match('./index.html')))
+    );
+    return;
+  }
+  // 정적 자원은 캐시 우선
   e.respondWith(
     caches.match(e.request).then(cached =>
       cached ||
