@@ -765,6 +765,8 @@ function normalize(s){
     if(m.topicId === undefined) m.topicId = null;
     if(!Array.isArray(m.links)) m.links = [];
     Object.values(m.nodes || {}).forEach(n => { if(OLD_COLORS[n.color]) n.color = OLD_COLORS[n.color]; });
+    /* 형제 간 정렬 순서(ord): 없으면 생성 순서대로 부여 */
+    Object.values(m.nodes || {}).forEach((n,i) => { if(typeof n.ord !== 'number') n.ord = i; });
     /* v3 마이그레이션: 캔버스의 day/item 노드를 분리형 플래너(map.plan)로 이동 */
     if(m.kind === 'trip' && !m.plan){
       const nodes = Object.values(m.nodes || {});
@@ -1522,7 +1524,10 @@ function endPointer(e){
       renderMap(); renderSelBar();
     }
   }
-  if(drag.moved) save();
+  if(drag.moved){
+    if(drag.type === 'node' && map) reorderAfterDrag(map, drag.id);
+    save();
+  }
   drag = null;
   if(pendingRemote){ const p = pendingRemote; pendingRemote = null; applyRemote(p); }
 }
@@ -1782,7 +1787,8 @@ function addChild(parentId){
   const n = {
     id: uid(), parentId, type:'idea', text:'새 노드',
     color: p.type === 'root' ? PALETTE[(Object.values(map.nodes).filter(x=>x.parentId===parentId).length+1)%PALETTE.length] : p.color,
-    x: pos.x, y: pos.y, meta:{}
+    x: pos.x, y: pos.y, meta:{},
+    ord: Object.values(map.nodes).reduce((mx,x) => Math.max(mx, x.ord||0), 0) + 1
   };
   map.nodes[n.id] = n;
   sel = n.id;
@@ -1803,12 +1809,22 @@ function deleteNode(){
   save(); renderMap(); renderSelBar(); closeSheets();
 }
 
+/* 드래그로 옮긴 노드의 형제 간 순서(ord)를 새 세로 위치에 맞게 갱신 */
+function reorderAfterDrag(map, id){
+  const n = map.nodes[id]; if(!n || !n.parentId || !map.nodes[n.parentId]) return;
+  const sibs = childrenOf(map, n.parentId).filter(s => s.id !== id).sort((a,b) => (a.ord||0) - (b.ord||0));
+  let idx = sibs.findIndex(s => n.y < s.y);
+  if(idx < 0) idx = sibs.length;
+  sibs.splice(idx, 0, n);
+  sibs.forEach((s,i) => s.ord = i);
+}
+
 /* ════════════════ 자동 정돈 ════════════════ */
 function autoLayout(){
   const map = curMap(); if(!map) return;
   const GX = 270, GAP = 16, MIN = 54;
-  // 드래그로 옮긴 현재 위치(세로 순서)를 그대로 유지하며 정돈
-  const kids = id => childrenOf(map, id).sort((a,b) => a.y - b.y || a.x - b.x);
+  // 저장된 형제 순서(ord)대로 정돈 — 드래그로 옮기면 그때 ord가 갱신됨
+  const kids = id => childrenOf(map, id).sort((a,b) => (a.ord||0) - (b.ord||0));
   function h(id){
     const ch = childrenOf(map, id);
     if(!ch.length) return MIN;
