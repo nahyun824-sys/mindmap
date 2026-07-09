@@ -625,11 +625,11 @@
     <div class="field"><label>일정 내용</label><input name="text" required></div>
     <div class="field" id="pitemDepthField" style="display:none">
       <label>단계</label>
-      <select id="pitemDepth">
-        <option value="0">대분류 (Day 바로 아래)</option>
-        <option value="1">중분류 (대분류 아래)</option>
-        <option value="2">소분류 (중분류 아래)</option>
-      </select>
+      <div class="seg" id="pitemDepthSeg">
+        <button type="button" data-d="0" class="on">대분류</button>
+        <button type="button" data-d="1">중분류</button>
+        <button type="button" data-d="2">소분류</button>
+      </div>
     </div>
     <div class="field" id="pitemParentField" style="display:none"><label>상위 일정</label><select id="pitemParent"></select></div>
     <div class="field-row">
@@ -1204,7 +1204,7 @@ function renderMap(){
   grouped.sort((a,b) => nodeDepth(map,a) - nodeDepth(map,b));
   for(const n of grouped){
     const b = groupBox(map, n.id);
-    const pad = 18, padTop = n.group.label ? 38 : 18;
+    const pad = 18, padTop = 38;
     const g = document.createElementNS(SVGNS,'g');
     g.setAttribute('pointer-events','none');
     const rect = document.createElementNS(SVGNS,'rect');
@@ -1216,26 +1216,28 @@ function renderMap(){
     rect.setAttribute('fill', n.color);
     rect.setAttribute('fill-opacity', .13);
     rect.setAttribute('stroke', strokeTone(n.color));
-    rect.setAttribute('stroke-width', 1.5);
+    rect.setAttribute('stroke-width', groupEditFor === n.id ? 2.5 : 1.5);
     rect.setAttribute('stroke-dasharray','7 5');
     rect.setAttribute('opacity', .9);
     g.appendChild(rect);
-    if(n.group.label){
-      const t = document.createElementNS(SVGNS,'text');
-      t.setAttribute('x', b.minX - pad + 13);
-      t.setAttribute('y', b.minY - padTop + 22);
-      t.setAttribute('font-size', 11.5);
-      t.setAttribute('font-weight', 700);
-      t.setAttribute('fill', strokeTone(n.color));
-      t.setAttribute('stroke', C.bg);
-      t.setAttribute('stroke-width', 4);
-      t.setAttribute('stroke-linejoin','round');
-      t.setAttribute('paint-order','stroke');
-      let gl = n.group.label;
-      if(gl.length > 24) gl = gl.slice(0,23) + '…';
-      t.textContent = gl;
-      g.appendChild(t);
-    }
+    // 그룹 이름 — 탭하면 멤버 편집 모드 시작/종료
+    const t = document.createElementNS(SVGNS,'text');
+    t.setAttribute('x', b.minX - pad + 13);
+    t.setAttribute('y', b.minY - padTop + 22);
+    t.setAttribute('font-size', 11.5);
+    t.setAttribute('font-weight', 700);
+    t.setAttribute('fill', strokeTone(n.color));
+    t.setAttribute('stroke', C.bg);
+    t.setAttribute('stroke-width', 4);
+    t.setAttribute('stroke-linejoin','round');
+    t.setAttribute('paint-order','stroke');
+    t.setAttribute('pointer-events','auto');
+    t.setAttribute('cursor','pointer');
+    t.dataset.groupowner = n.id;
+    let gl = n.group.label || '그룹';
+    if(gl.length > 24) gl = gl.slice(0,23) + '…';
+    t.textContent = groupEditFor === n.id ? `✓ ${gl} 편집 중` : gl;
+    g.appendChild(t);
     world.appendChild(g);
   }
   for(const n of Object.values(map.nodes)){
@@ -1413,6 +1415,11 @@ svg.addEventListener('pointerdown', e => {
   svg.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if(pointers.size === 2){ drag = null; pinch = null; return; }
+  const glabel = e.target.closest('[data-groupowner]');
+  if(glabel){
+    drag = {type:'glabel', ownerId: glabel.dataset.groupowner, sx:e.clientX, sy:e.clientY, moved:false, t:Date.now()};
+    return;
+  }
   const g = e.target.closest('.mm-node');
   if(g && map.nodes[g.dataset.id]){
     const n = map.nodes[g.dataset.id];
@@ -1432,6 +1439,7 @@ svg.addEventListener('pointermove', e => {
   const dx = e.clientX-drag.sx, dy = e.clientY-drag.sy;
   if(Math.hypot(dx,dy) > 7) drag.moved = true;
   if(!drag.moved) return;
+  if(drag.type === 'glabel') return;
   if(drag.type === 'node'){
     const n = map.nodes[drag.id]; if(!n) return;
     const w = screenToWorld(e.clientX, e.clientY);
@@ -1466,7 +1474,21 @@ function endPointer(e){
   if(!drag) return;
   const map = curMap();
   if(map && !drag.moved && Date.now()-drag.t < 700){
-    if(drag.type === 'node'){
+    if(drag.type === 'glabel'){
+      const oid = drag.ownerId;
+      if(map.nodes[oid] && map.nodes[oid].group){
+        sel = oid;
+        if(groupEditFor === oid){
+          groupEditFor = null; hideHint();
+          showHint('그룹 편집을 마쳤어요', 1500);
+        }else{
+          groupEditFor = null;
+          renderSelBar();
+          startGroupEdit();
+        }
+        renderMap(); renderSelBar();
+      }
+    }else if(drag.type === 'node'){
       const id = drag.id;
       if(groupEditFor){
         toggleMember(groupEditFor, id);   // 모드 유지 — 연속으로 넣고 빼기
@@ -1525,7 +1547,6 @@ function renderSelBar(){
   if(map.kind === 'trip' && n.type !== 'root') html += btn('cal','일정에 추가','toplan');
   html += btn('link','연결','link');
   html += btn('group', n.group ? '그룹 해제' : '그룹', 'group');
-  if(n.group) html += btn('group','멤버 넣기/빼기','groupEdit');
   if(!n.group){
     if(n.groupId) html += btn('group','그룹에서 빼기','ungroupJoin');
     else if(Object.values(map.nodes).some(x => x.group && x.id !== n.id)) html += btn('group','그룹에 넣기','groupJoin');
@@ -1542,7 +1563,6 @@ function renderSelBar(){
     else if(fn === 'link') startLink();
     else if(fn === 'group') toggleGroup();
     else if(fn === 'groupJoin') startJoinGroup();
-    else if(fn === 'groupEdit') startGroupEdit();
     else if(fn === 'ungroupJoin') leaveGroup();
     else if(fn === 'del') deleteNode();
   }));
@@ -1807,9 +1827,10 @@ function openEdit(id){
   }else if(n.type !== 'root'){
     const groups = Object.values(map.nodes).filter(x => x.group && x.id !== n.id);
     if(groups.length){
+      const eff = groupOwnerOf(map, n.id);   // 직접 멤버십 + 조상 그룹까지 반영해 현재 상태 표시
       html += `<div class="field"><label>소속 그룹</label><select name="groupsel">
         <option value="">없음</option>
-        ${groups.map(g => `<option value="${g.id}" ${n.groupId===g.id?'selected':''}>${esc(g.group.label || g.text || '이름 없음')}</option>`).join('')}
+        ${groups.map(g => `<option value="${g.id}" ${eff===g.id?'selected':''}>${esc(g.group.label || g.text || '이름 없음')}</option>`).join('')}
       </select></div>`;
     }
   }
@@ -2029,6 +2050,7 @@ function deletePlanDay(){
 
 /* 일정 편집 컨텍스트: itemId(수정) 또는 dayId/parentId(추가) */
 let pitemCtx = null;
+let pitemDepthVal = 0;   // 노드→일정 추가 시 선택한 단계 (세그먼트 컨트롤)
 function openPlanItem(opts){
   const map = curMap(); if(!map || !map.plan) return;
   const o = opts || {};
@@ -2056,24 +2078,25 @@ function openPlanItem(opts){
   depthField.style.display = o.chooseDepth ? '' : 'none';
   parentField.style.display = 'none';
   if(o.chooseDepth){
-    const depthSel = document.getElementById('pitemDepth');
-    depthSel.value = '0';
+    pitemDepthVal = 0;
+    const seg = document.getElementById('pitemDepthSeg');
     const updateDepthUI = () => {
-      const dep = Number(depthSel.value) || 0;
-      document.getElementById('pitemTitle').textContent = `📍 ${DEPTH_NAMES[dep]} 일정 추가`;
-      document.getElementById('pitemDayField').style.display = dep === 0 ? '' : 'none';
-      parentField.style.display = dep === 0 ? 'none' : '';
-      if(dep === 0) return;
+      seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === pitemDepthVal));
+      document.getElementById('pitemTitle').textContent = `📍 ${DEPTH_NAMES[pitemDepthVal]} 일정 추가`;
+      document.getElementById('pitemDayField').style.display = pitemDepthVal === 0 ? '' : 'none';
+      parentField.style.display = pitemDepthVal === 0 ? 'none' : '';
+      if(pitemDepthVal === 0) return;
       const cands = [];
       map.plan.days.forEach((d,di) => d.items.forEach(t => {
-        if(dep === 1) cands.push({id:t.id, label:`Day ${di+1} · ${t.text}`});
+        if(pitemDepthVal === 1) cands.push({id:t.id, label:`Day ${di+1} · ${t.text}`});
         else (t.subs||[]).forEach(s2 => cands.push({id:s2.id, label:`Day ${di+1} · ${t.text} › ${s2.text}`}));
       }));
       document.getElementById('pitemParent').innerHTML = cands.length
         ? cands.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('')
-        : `<option value="">— ${DEPTH_NAMES[dep-1]} 일정이 아직 없어요 —</option>`;
+        : `<option value="">— ${DEPTH_NAMES[pitemDepthVal-1]} 일정이 아직 없어요 —</option>`;
     };
-    depthSel.onchange = updateDepthUI;
+    seg.querySelectorAll('button').forEach(b =>
+      b.onclick = () => { pitemDepthVal = Number(b.dataset.d) || 0; updateDepthUI(); });
     updateDepthUI();
   }
   document.getElementById('pitemDay').innerHTML = map.plan.days.map((d,i) =>
@@ -2106,7 +2129,7 @@ function savePlanItem(form){
         day.items.push(it);
       }
     }
-  }else if(pitemCtx.chooseDepth && Number(document.getElementById('pitemDepth').value) > 0){
+  }else if(pitemCtx.chooseDepth && pitemDepthVal > 0){
     const pid = document.getElementById('pitemParent').value;
     const found = pid ? findPlanItem(map, pid) : null;
     if(!found){ alert('상위 일정이 없어요. 먼저 상위 단계 일정을 만들어 주세요.'); return false; }
