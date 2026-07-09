@@ -1680,19 +1680,27 @@ function toggleMember(ownerId, id){
   const owner = map.nodes[ownerId], n = map.nodes[id];
   if(!owner || !owner.group || !n){ groupEditFor = null; hideHint(); return; }
   if(id === ownerId){ showHint('그룹의 중심 노드예요 · 빈 곳을 탭하면 완료', 2000); return; }
-  // 서브트리로 이미 포함되는 노드는 뺄 수 없음
-  let p = n, guard = 0;
-  while(p && guard++ < 50){
-    if(p.id === ownerId){ showHint('하위 노드라 항상 그룹에 포함돼요', 2000); return; }
-    p = map.nodes[p.parentId];
-  }
   if(n.groupId === ownerId){
     delete n.groupId;
     showHint('그룹에서 뺐어요 · 계속 탭하거나 빈 곳 탭: 완료', 2500);
-  }else{
-    n.groupId = ownerId;
-    showHint('그룹에 넣었어요 · 계속 탭하거나 빈 곳 탭: 완료', 2500);
+    save(); renderMap();
+    return;
   }
+  // 조상을 따라가며: 그룹 노드의 서브트리인지 / 멤버 노드의 하위인지 확인
+  let p = map.nodes[n.parentId], guard = 0;
+  while(p && guard++ < 50){
+    if(p.id === ownerId){ showHint('하위 노드라 항상 그룹에 포함돼요', 2000); return; }
+    if(p.groupId === ownerId){
+      // 상위 노드가 멤버라 함께 포함된 노드 → 탭하면 그 가지 전체가 그룹에서 나감
+      delete p.groupId;
+      showHint('상위 노드와 함께 그룹에서 뺐어요 · 빈 곳 탭: 완료', 2500);
+      save(); renderMap();
+      return;
+    }
+    p = map.nodes[p.parentId];
+  }
+  n.groupId = ownerId;
+  showHint('그룹에 넣었어요 · 계속 탭하거나 빈 곳 탭: 완료', 2500);
   save(); renderMap();
 }
 
@@ -1823,7 +1831,18 @@ function openEdit(id){
     html += `<div class="field"><label>연결선 설명 (부모와 잇는 선 위에 표시)</label><input name="edge" value="${esc(n.edgeLabel||'')}" placeholder="예: 이유, 이동수단, 관계 등"></div>`;
   }
   if(n.group){
-    html += `<div class="field"><label>그룹 이름 (하위 노드를 묶는 영역에 표시)</label><input name="grouplabel" value="${esc(n.group.label||'')}" placeholder="예: 오전 일정, 아이디어 후보"></div>`;
+    const cur = (n.group.label||'').trim();
+    const labels = [...new Set(Object.values(map.nodes)
+      .filter(x => x.group && (x.group.label||'').trim())
+      .map(x => x.group.label.trim()))];
+    html += `<div class="field"><label>그룹 이름 (하위 노드를 묶는 영역에 표시)</label>`;
+    if(labels.length){
+      html += `<select id="groupLabelPick" style="margin-bottom:8px">
+        <option value="">직접 입력…</option>
+        ${labels.map(l => `<option value="${esc(l)}" ${l===cur?'selected':''}>${esc(l)}</option>`).join('')}
+      </select>`;
+    }
+    html += `<input name="grouplabel" value="${esc(n.group.label||'')}" placeholder="예: 오전 일정, 아이디어 후보"></div>`;
   }else if(n.type !== 'root'){
     const groups = Object.values(map.nodes).filter(x => x.group && x.id !== n.id);
     if(groups.length){
@@ -1838,6 +1857,13 @@ function openEdit(id){
     ${PALETTE.map(col => `<button type="button" class="color-dot ${col===n.color?'on':''}" style="background:${col}" data-col="${col}"></button>`).join('')}
   </div></div>`;
   form.innerHTML = html;
+  const labelPick = document.getElementById('groupLabelPick');
+  if(labelPick) labelPick.addEventListener('change', () => {
+    const inp = form.querySelector('input[name=grouplabel]');
+    if(!inp) return;
+    if(labelPick.value){ inp.value = labelPick.value; }
+    else { inp.value = ''; inp.focus(); }
+  });
   form.querySelectorAll('.color-dot').forEach(b => b.addEventListener('click', () => {
     form.querySelectorAll('.color-dot').forEach(x => x.classList.remove('on'));
     b.classList.add('on');
