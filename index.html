@@ -432,6 +432,14 @@
     </div>
     <!-- 설정 -->
     <div class="view" id="viewSettings">
+      <div class="settings-section" id="secCloudSetup" style="display:none">
+        <div class="sec-title">☁️ 클라우드 미설정</div>
+        <div class="set-note">
+          지금은 데이터가 이 기기에만 저장돼요. Google 로그인·기기 간 동기화·공유를 쓰려면
+          마인드맵 전용 Firebase 프로젝트를 연결해야 합니다.<br>
+          저장소의 <b>FIREBASE_SETUP.md</b> 순서대로 설정한 뒤 index.html의 firebaseConfig에 값을 붙여넣으세요.
+        </div>
+      </div>
       <div class="settings-section" id="secAccount" style="display:none">
         <div class="sec-title">👤 계정</div>
         <div class="su-item" id="myAccountRow"></div>
@@ -2028,14 +2036,17 @@ document.addEventListener('keydown', e => {
   else if(e.key === 'Escape'){ sel = null; renderMap(); renderSelBar(); }
 });
 
-/* ════════════════ 클라우드 동기화 · 공유 (Firebase — 투두 캘린더와 같은 프로젝트) ════════════════ */
+/* ════════════════ 클라우드 동기화 · 공유 (Firebase — 마인드맵 전용 프로젝트) ════════════════ */
+/* ⚠️ 마인드맵 전용 Firebase 프로젝트의 설정값을 여기에 붙여넣으세요.
+   (Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) → SDK 설정 및 구성 → firebaseConfig)
+   자세한 순서는 저장소의 FIREBASE_SETUP.md 참고. 값이 비어 있으면 로컬 저장 모드로 동작합니다. */
 const firebaseConfig = {
-  apiKey: "AIzaSyDUEaTTcv6pwxnKxc4PMYrv2RbOuSy02bw",
-  authDomain: "nahyoni-todo.firebaseapp.com",
-  projectId: "nahyoni-todo",
-  storageBucket: "nahyoni-todo.firebasestorage.app",
-  messagingSenderId: "1095838509318",
-  appId: "1:1095838509318:web:f807ed15083a6c72d01687"
+  apiKey: "AIzaSyDshurIw2Yss1jNWv3mN0-fI8sLvAj2wpg",
+  authDomain: "hyoni-mindmaps.firebaseapp.com",
+  projectId: "hyoni-mindmaps",
+  storageBucket: "hyoni-mindmaps.firebasestorage.app",
+  messagingSenderId: "731588076123",
+  appId: "1:731588076123:web:a285eb9cc3705b3008557e"
 };
 const cloud = {
   on:false, me:null, viewingUid:null, viewingName:'',
@@ -2043,8 +2054,9 @@ const cloud = {
   sharedWith:[], sharedMaps:[]
 };
 let fbAuth = null, fbDb = null;
+const configReady = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 try{
-  if(window.firebase){
+  if(window.firebase && configReady){
     firebase.initializeApp(firebaseConfig);
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
@@ -2239,6 +2251,8 @@ function renderShareUI(){
   ['secAccount','secShare','secSharedWith','secSharedMaps'].forEach(id => {
     const el = document.getElementById(id); if(el) el.style.display = on ? '' : 'none';
   });
+  const setup = document.getElementById('secCloudSetup');
+  if(setup) setup.style.display = cloud.on ? 'none' : '';
   if(!on) return;
   document.getElementById('myAccountRow').innerHTML = `
     <div class="su-av">${cloud.me.photoURL ? `<img src="${cloud.me.photoURL}">` : esc((cloud.me.displayName||'?')[0].toUpperCase())}</div>
