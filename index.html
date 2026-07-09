@@ -326,6 +326,10 @@
   .pcal-cell.trip:active{transform:scale(.94);}
   .pcal-cell.today{box-shadow:inset 0 0 0 1.5px var(--primary);}
   .pcal-dayn{font-size:8.5px; font-weight:700; line-height:1; opacity:.85;}
+  .pcal-cell.dsel{box-shadow:inset 0 0 0 2.2px var(--primary); font-weight:800;}
+  .pcal-chip{padding:7px 11px; border-radius:9px; background:var(--field); font-size:12px; font-weight:600; color:var(--body);}
+  .pcal-chip.dsel{box-shadow:inset 0 0 0 2px var(--primary); color:var(--primary);}
+  #pitemSheet form{overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0;}
   .itin-day.flash{box-shadow:0 0 0 2.5px var(--primary), var(--shadow); transition:box-shadow .2s;}
 
   /* ═══ 로그인 & 공유 ═══ */
@@ -645,6 +649,10 @@
       </div>
     </div>
     <div class="field" id="pitemParentField" style="display:none"><label>상위 일정</label><select id="pitemParent"></select></div>
+    <div class="field" id="pitemDayCalField" style="display:none">
+      <label>날짜 <span id="pitemDaySelCnt"></span></label>
+      <div id="pitemDayCal"></div>
+    </div>
     <div class="field-row">
       <div class="field" id="pitemDayField"><label>날짜</label><select name="day" id="pitemDay"></select></div>
       <div class="field"><label>시간</label><input name="time" type="time"></div>
@@ -2132,6 +2140,55 @@ function deletePlanDay(){
 /* 일정 편집 컨텍스트: itemId(수정) 또는 dayId/parentId(추가) */
 let pitemCtx = null;
 let pitemDepthVal = 0;   // 노드→일정 추가 시 선택한 단계 (세그먼트 컨트롤)
+let pitemDaySel = new Set();   // 노드→일정 추가 시 달력에서 고른 날짜(dayId)들
+
+/* 노드→일정 추가용 다중 선택 달력: 여행 날짜를 탭해서 여러 날에 넣기 */
+function renderPitemDayCal(map){
+  const box = document.getElementById('pitemDayCal'); if(!box) return;
+  const days = map.plan.days;
+  const byDate = {};
+  days.forEach((d,i) => { if(d.date) byDate[d.date] = {idx:i+1, id:d.id, color:PALETTE[(i+1)%PALETTE.length]}; });
+  let html = '';
+  const rng = planRange(map);
+  const s = new Date(rng.start+'T00:00:00'), e = new Date(rng.end+'T00:00:00');
+  if(rng.start && !isNaN(s) && !isNaN(e)){
+    let cur = new Date(s.getFullYear(), s.getMonth(), 1), guard = 0;
+    while(cur <= e && guard++ < 6){
+      const y = cur.getFullYear(), mo = cur.getMonth();
+      html += `<div class="pcal-title" style="margin:6px 0 4px">${y}년 ${mo+1}월</div><div class="pcal-grid">`;
+      html += DAY_NAMES.map(w => `<span class="pcal-wd">${w}</span>`).join('');
+      const first = new Date(y, mo, 1).getDay();
+      const last = new Date(y, mo+1, 0).getDate();
+      for(let i=0; i<first; i++) html += `<span class="pcal-cell"></span>`;
+      for(let d=1; d<=last; d++){
+        const ymd = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const t = byDate[ymd];
+        if(t){
+          const on = pitemDaySel.has(t.id);
+          html += `<span class="pcal-cell trip ${on?'dsel':''}" data-dsel="${t.id}" style="background:${t.color}${on?'':'44'};color:${strokeTone(t.color)}">${d}<span class="pcal-dayn">D${t.idx}</span></span>`;
+        }else{
+          html += `<span class="pcal-cell" style="opacity:.35">${d}</span>`;
+        }
+      }
+      html += `</div>`;
+      cur = new Date(y, mo+1, 1);
+    }
+  }
+  const undated = days.map((d,i) => ({d,i})).filter(x => !x.d.date);
+  if(undated.length){
+    html += `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">` +
+      undated.map(x => `<button type="button" class="pcal-chip ${pitemDaySel.has(x.d.id)?'dsel':''}" data-dsel="${x.d.id}">Day ${x.i+1} · 날짜 미정</button>`).join('') +
+      `</div>`;
+  }
+  box.innerHTML = html;
+  const cnt = document.getElementById('pitemDaySelCnt');
+  if(cnt) cnt.textContent = pitemDaySel.size ? `· ${pitemDaySel.size}일 선택됨` : '· 날짜를 탭하세요 (여러 날 가능)';
+  box.querySelectorAll('[data-dsel]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.dsel;
+    if(pitemDaySel.has(id)) pitemDaySel.delete(id); else pitemDaySel.add(id);
+    renderPitemDayCal(map);
+  }));
+}
 function openPlanItem(opts){
   const map = curMap(); if(!map || !map.plan) return;
   const o = opts || {};
@@ -2152,7 +2209,9 @@ function openPlanItem(opts){
   document.getElementById('pitemTitle').textContent = `📍 ${DEPTH_NAMES[depth]} 일정 ${it ? '편집' : '추가'}`;
   const form = document.getElementById('pitemSheet').querySelector('form');
   // 하위 일정은 상위 일정을 따라가므로 날짜 선택은 대분류에서만
-  document.getElementById('pitemDayField').style.display = parentId ? 'none' : '';
+  // (노드→일정 추가는 드롭다운 대신 다중 선택 달력을 사용)
+  document.getElementById('pitemDayField').style.display = (parentId || o.chooseDepth) ? 'none' : '';
+  document.getElementById('pitemDayCalField').style.display = 'none';
   // 단계 선택 (마인드맵 노드에서 보낼 때): 대/중/소분류 + 상위 일정 고르기
   const depthField = document.getElementById('pitemDepthField');
   const parentField = document.getElementById('pitemParentField');
@@ -2164,7 +2223,7 @@ function openPlanItem(opts){
     const updateDepthUI = () => {
       seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === pitemDepthVal));
       document.getElementById('pitemTitle').textContent = `📍 ${DEPTH_NAMES[pitemDepthVal]} 일정 추가`;
-      document.getElementById('pitemDayField').style.display = pitemDepthVal === 0 ? '' : 'none';
+      document.getElementById('pitemDayCalField').style.display = pitemDepthVal === 0 ? '' : 'none';
       parentField.style.display = pitemDepthVal === 0 ? 'none' : '';
       if(pitemDepthVal === 0) return;
       const cands = [];
@@ -2178,6 +2237,8 @@ function openPlanItem(opts){
     };
     seg.querySelectorAll('button').forEach(b =>
       b.onclick = () => { pitemDepthVal = Number(b.dataset.d) || 0; updateDepthUI(); });
+    pitemDaySel = new Set([day.id]);
+    renderPitemDayCal(map);
     updateDepthUI();
   }
   document.getElementById('pitemDay').innerHTML = map.plan.days.map((d,i) =>
@@ -2198,10 +2259,10 @@ function openPlanItem(opts){
 function savePlanItem(form){
   const map = curMap(); if(!map || !map.plan || !pitemCtx) return false;
   const f = new FormData(form);
-  let it = null;
+  let targets = [];
   if(pitemCtx.itemId){
     const found = findPlanItem(map, pitemCtx.itemId); if(!found) return false;
-    it = found.item;
+    const it = found.item;
     // 대분류만 다른 Day로 이동 가능
     if(!found.parent){
       const day = map.plan.days.find(d => d.id === f.get('day'));
@@ -2210,33 +2271,44 @@ function savePlanItem(form){
         day.items.push(it);
       }
     }
+    targets = [it];
   }else if(pitemCtx.chooseDepth && pitemDepthVal > 0){
     const pid = document.getElementById('pitemParent').value;
     const found = pid ? findPlanItem(map, pid) : null;
     if(!found){ alert('상위 일정이 없어요. 먼저 상위 단계 일정을 만들어 주세요.'); return false; }
     if(!Array.isArray(found.item.subs)) found.item.subs = [];
-    it = {id: uid(), subs: []};
+    const it = {id: uid(), subs: []};
     found.item.subs.push(it);
+    targets = [it];
   }else if(pitemCtx.parentId){
     const found = findPlanItem(map, pitemCtx.parentId); if(!found) return false;
     if(!Array.isArray(found.item.subs)) found.item.subs = [];
-    it = {id: uid(), subs: []};
+    const it = {id: uid(), subs: []};
     found.item.subs.push(it);
+    targets = [it];
+  }else if(pitemCtx.chooseDepth){
+    // 노드→일정: 달력에서 고른 모든 날짜에 같은 일정 추가
+    const days = map.plan.days.filter(d => pitemDaySel.has(d.id));
+    if(!days.length){ alert('달력에서 날짜를 하나 이상 선택해 주세요.'); return false; }
+    targets = days.map(d => { const it = {id: uid(), subs: []}; d.items.push(it); return it; });
   }else{
     const day = map.plan.days.find(d => d.id === f.get('day')) || map.plan.days[0];
     if(!day) return false;
-    it = {id: uid(), subs: []};
+    const it = {id: uid(), subs: []};
     day.items.push(it);
+    targets = [it];
   }
-  it.text = String(f.get('text')||'').trim() || '새 일정';
-  it.time = f.get('time') || '';
-  it.cat = f.get('cat') || 'etc';
-  it.cost = Number(f.get('cost')) || 0;
-  it.memo = String(f.get('memo')||'').trim();
+  targets.forEach(it => {
+    it.text = String(f.get('text')||'').trim() || '새 일정';
+    it.time = f.get('time') || '';
+    it.cat = f.get('cat') || 'etc';
+    it.cost = Number(f.get('cost')) || 0;
+    it.memo = String(f.get('memo')||'').trim();
+  });
   sortPlan(map);
   save(); closeSheets();
   if(planActive()) renderPlan();
-  else showHint('플래너에 일정을 추가했어요', 2000);
+  else showHint(targets.length > 1 ? `${targets.length}일에 일정을 추가했어요` : '플래너에 일정을 추가했어요', 2000);
   return false;
 }
 function deletePlanItem(){
