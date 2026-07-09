@@ -379,6 +379,12 @@
   .remove-btn{border:1px solid var(--line2); border-radius:8px; padding:4px 9px; font-size:11px; color:var(--sub); flex:0 0 auto;}
   .view-cal-btn{background:var(--primary); color:var(--on-primary); border-radius:8px; padding:5px 12px; font-size:12px; flex:0 0 auto;}
   .empty-sec{text-align:center; color:var(--sub); font-size:13px; padding:14px 0;}
+  .log-item{padding:9px 0; border-bottom:1px solid var(--line);}
+  .log-item:last-child{border-bottom:none;}
+  .log-head{font-size:12px; font-weight:700; color:var(--text); margin-bottom:3px;}
+  .log-head .log-time{color:var(--sub); font-weight:500; margin-left:6px;}
+  .log-map{font-size:11px; font-weight:600; color:var(--primary); margin-top:4px;}
+  .log-lines{font-size:12.5px; color:var(--body); line-height:1.65;}
 </style>
 </head>
 <body>
@@ -454,6 +460,13 @@
           <button class="copy-btn" onclick="copyShareLink()">복사</button>
         </div>
         <div class="set-note" style="margin-top:8px">링크로 들어온 친구는 내 마인드맵을 <b>함께 보고 수정</b>할 수 있어요</div>
+      </div>
+      <div class="settings-section" id="secLog" style="display:none">
+        <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>📝 변경 로그</span>
+          <button class="remove-btn" onclick="clearLog()">비우기</button>
+        </div>
+        <div id="logList"></div>
       </div>
       <div class="settings-section" id="secSharedWith" style="display:none">
         <div class="sec-title">👥 공유한 사람들</div>
@@ -2306,7 +2319,7 @@ const firebaseConfig = {
 const cloud = {
   on:false, me:null, viewingUid:null, viewingName:'',
   unsubs:[], pushT:null, lastPushed:{}, lastTopics:'',
-  sharedWith:[], sharedMaps:[]
+  sharedWith:[], sharedMaps:[], logEntries:[]
 };
 let fbAuth = null, fbDb = null;
 const configReady = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
@@ -2381,6 +2394,78 @@ async function firstSyncMigrate(){
   }
 }
 
+/* ── 변경 로그: 공유받은 사람이 수정하면 mindmaps/_log 문서에 요약을 기록 ── */
+const snip = s => { s = String(s||''); return s.length > 20 ? s.slice(0,19) + '…' : s; };
+function flatPlanItems(m){
+  const out = {};
+  (((m && m.plan) || {}).days || []).forEach(d => {
+    const walk = arr => (arr||[]).forEach(it => { out[it.id] = it; walk(it.subs); });
+    walk(d.items);
+  });
+  return out;
+}
+/* 위치 이동(x,y,ord,cam)은 제외하고 내용 변화만 사람이 읽을 문장으로 */
+function diffMapChanges(a, b){
+  const L = [];
+  if(!a){ L.push('마인드맵을 만들었어요'); return L; }
+  if(a.name !== b.name) L.push(`이름 변경: '${snip(a.name)}' → '${snip(b.name)}'`);
+  const an = a.nodes || {}, bn = b.nodes || {};
+  Object.values(bn).forEach(n => {
+    const o = an[n.id];
+    if(!o) L.push(`노드 '${snip(n.text)}' 추가`);
+    else if(o.text !== n.text) L.push(`노드 '${snip(o.text)}' → '${snip(n.text)}'`);
+    else if(o.color !== n.color || (o.edgeLabel||'') !== (n.edgeLabel||'')
+      || JSON.stringify(o.group||null) !== JSON.stringify(n.group||null)
+      || (o.groupId||null) !== (n.groupId||null)) L.push(`노드 '${snip(n.text)}' 수정`);
+  });
+  Object.values(an).forEach(o => { if(!bn[o.id]) L.push(`노드 '${snip(o.text)}' 삭제`); });
+  if(JSON.stringify(a.links||[]) !== JSON.stringify(b.links||[])) L.push('연결선 변경');
+  const ad = ((a.plan||{}).days)||[], bd = ((b.plan||{}).days)||[];
+  if((a.plan||{}).dest !== (b.plan||{}).dest && (a.plan || b.plan)) L.push('목적지 변경');
+  bd.forEach(d => {
+    const o = ad.find(x => x.id === d.id);
+    if(!o) L.push(`Day(${fmtShort(d.date)||'미정'}) 추가`);
+    else if(o.date !== d.date || (o.note||'') !== (d.note||'')) L.push(`Day(${fmtShort(d.date)||'미정'}) 수정`);
+  });
+  ad.forEach(o => { if(!bd.some(x => x.id === o.id)) L.push(`Day(${fmtShort(o.date)||'미정'}) 삭제`); });
+  const ai = flatPlanItems(a), bi = flatPlanItems(b);
+  Object.values(bi).forEach(it => {
+    const o = ai[it.id];
+    if(!o) L.push(`일정 '${snip(it.text)}' 추가`);
+    else if(['text','time','cat','memo'].some(k => (o[k]||'') !== (it[k]||'')) || (Number(o.cost)||0) !== (Number(it.cost)||0))
+      L.push(`일정 '${snip(o.text)}' 수정`);
+  });
+  Object.values(ai).forEach(o => { if(!bi[o.id]) L.push(`일정 '${snip(o.text)}' 삭제`); });
+  return L;
+}
+function appendLog(uid0, items){
+  if(!items.length) return;
+  const entry = {
+    at: Date.now(),
+    byUid: cloud.me ? cloud.me.uid : '',
+    byName: cloud.me ? (cloud.me.displayName || cloud.me.email || '누군가') : '누군가',
+    items: items.map(x => ({
+      map: x.map || '',
+      lines: x.lines.length > 6 ? x.lines.slice(0,6).concat([`외 ${x.lines.length-6}건`]) : x.lines
+    }))
+  };
+  const entries = [entry, ...(cloud.logEntries||[])].slice(0, 50);
+  cloud.logEntries = entries;
+  mapsCol(uid0).doc('_log').set({entries: cleanJSON(entries)}).catch(() => {});
+}
+function clearLog(){
+  if(!cloud.on || !cloud.me) return;
+  if(!confirm('변경 로그를 모두 지울까요?')) return;
+  cloud.logEntries = [];
+  mapsCol(workUid()).doc('_log').set({entries: []}).catch(() => {});
+  renderShareUI();
+}
+function fmtLogTime(ms){
+  const d = new Date(ms);
+  if(isNaN(d)) return '';
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
 /* ── 내보내기: save()마다 디바운스 후 바뀐 문서만 push ── */
 function scheduleCloudPush(){
   if(!cloud.on || !cloud.me) return;
@@ -2392,10 +2477,17 @@ function pushDiff(){
   const batch = fbDb.batch();
   let dirty = false;
   const ids = new Set();
+  const logItems = [];   // 공유받은 맵을 편집 중일 때만 채워짐
   state.maps.forEach(m => {
     ids.add(m.id);
     const j = JSON.stringify(m);
     if(cloud.lastPushed[m.id] !== j){
+      if(isShared()){
+        try{
+          const lines = diffMapChanges(cloud.lastPushed[m.id] ? JSON.parse(cloud.lastPushed[m.id]) : null, m);
+          if(lines.length) logItems.push({map: m.name, lines});
+        }catch(e){}
+      }
       batch.set(mapsCol(uid0).doc(m.id), JSON.parse(j));
       cloud.lastPushed[m.id] = j;
       dirty = true;
@@ -2403,6 +2495,9 @@ function pushDiff(){
   });
   Object.keys(cloud.lastPushed).forEach(id => {
     if(!ids.has(id)){
+      if(isShared()){
+        try{ logItems.push({map: (JSON.parse(cloud.lastPushed[id])||{}).name || '', lines:['마인드맵 삭제']}); }catch(e){}
+      }
       batch.delete(mapsCol(uid0).doc(id));
       delete cloud.lastPushed[id];
       dirty = true;
@@ -2410,11 +2505,13 @@ function pushDiff(){
   });
   const tj = JSON.stringify(state.topics);
   if(cloud.lastTopics !== tj){
+    if(isShared() && cloud.lastTopics) logItems.push({map:'', lines:['주제(폴더) 구성 변경']});
     batch.set(mapsCol(uid0).doc('_meta'), {topics: JSON.parse(tj)});
     cloud.lastTopics = tj;
     dirty = true;
   }
   if(dirty) batch.commit().catch(() => {});  // 오프라인이면 SDK가 재연결 시 전송
+  appendLog(uid0, logItems);
 }
 
 /* ── 들여오기: 스냅샷 → state 반영 (드래그 중엔 보류) ── */
@@ -2428,8 +2525,10 @@ function startCloudListeners(){
     let topics = null;
     snap.forEach(doc => {
       if(doc.id === '_meta') topics = (doc.data()||{}).topics || [];
+      else if(doc.id === '_log') cloud.logEntries = (doc.data()||{}).entries || [];
       else maps.push(doc.data());
     });
+    renderShareUI();
     applyRemote({maps, topics});
   }, () => {}));
   cloud.unsubs.push(fbDb.collection('users').doc(cloud.me.uid).collection('mmSharedWith').onSnapshot(snap => {
@@ -2503,7 +2602,7 @@ function copyShareLink(){
 }
 function renderShareUI(){
   const on = cloud.on && !!cloud.me;
-  ['secAccount','secShare','secSharedWith','secSharedMaps'].forEach(id => {
+  ['secAccount','secShare','secLog','secSharedWith','secSharedMaps'].forEach(id => {
     const el = document.getElementById(id); if(el) el.style.display = on ? '' : 'none';
   });
   const setup = document.getElementById('secCloudSetup');
@@ -2513,6 +2612,14 @@ function renderShareUI(){
     <div class="su-av">${cloud.me.photoURL ? `<img src="${cloud.me.photoURL}">` : esc((cloud.me.displayName||'?')[0].toUpperCase())}</div>
     <div class="su-info"><div class="su-name">${esc(cloud.me.displayName||'')}</div><div class="su-email">${esc(cloud.me.email||'')}</div></div>`;
   document.getElementById('shareLinkText').textContent = `${location.origin}${location.pathname}?join=${cloud.me.uid}`;
+  const lg = document.getElementById('logList');
+  lg.innerHTML = (cloud.logEntries||[]).length ? cloud.logEntries.map(e => `
+    <div class="log-item">
+      <div class="log-head">${esc(e.byName||'')}<span class="log-time">${fmtLogTime(e.at)}</span></div>
+      ${(e.items||[]).map(it => `
+        ${it.map ? `<div class="log-map">🗺️ ${esc(it.map)}</div>` : ''}
+        <div class="log-lines">${(it.lines||[]).map(esc).join('<br>')}</div>`).join('')}
+    </div>`).join('') : '<div class="empty-sec">아직 변경 기록이 없어요</div>';
   const sw = document.getElementById('sharedWithList');
   sw.innerHTML = cloud.sharedWith.length ? cloud.sharedWith.map(u => `
     <div class="su-item">
