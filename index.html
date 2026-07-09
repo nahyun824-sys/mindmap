@@ -1669,6 +1669,27 @@ function renderGroupSheet(){
   }));
 }
 
+/* 그룹에서 뺀 노드(서브트리)가 그룹 영역과 겹치면 영역 아래로 이동 */
+function moveOutsideGroup(map, ownerId, nodeId){
+  if(!map.nodes[ownerId] || !map.nodes[ownerId].group || !map.nodes[nodeId]) return;
+  const gb = groupBox(map, ownerId);
+  const pad = 18, padTop = 38, margin = 28;
+  const gRect = {minX: gb.minX - pad, maxX: gb.maxX + pad, minY: gb.minY - padTop, maxY: gb.maxY + pad};
+  const nb = subtreeBox(map, nodeId);
+  const overlap = nb.minX < gRect.maxX && nb.maxX > gRect.minX && nb.minY < gRect.maxY && nb.maxY > gRect.minY;
+  if(!overlap) return;
+  const dy = Math.round(gRect.maxY + margin - nb.minY);
+  const seen = new Set();
+  const walk = id => {
+    const c = map.nodes[id];
+    if(!c || seen.has(id)) return;
+    seen.add(id);
+    c.y += dy;
+    Object.values(map.nodes).forEach(x => { if(x.parentId === id) walk(x.id); });
+  };
+  walk(nodeId);
+}
+
 /* 그룹 노드를 선택한 뒤 멤버 편집 모드: 노드를 탭할 때마다 넣기/빼기 토글 */
 function startGroupEdit(){
   const map = curMap(); const n = map && map.nodes[sel]; if(!n || !n.group) return;
@@ -1682,6 +1703,7 @@ function toggleMember(ownerId, id){
   if(id === ownerId){ showHint('그룹의 중심 노드예요 · 빈 곳을 탭하면 완료', 2000); return; }
   if(n.groupId === ownerId){
     delete n.groupId;
+    moveOutsideGroup(map, ownerId, id);
     showHint('그룹에서 뺐어요 · 계속 탭하거나 빈 곳 탭: 완료', 2500);
     save(); renderMap();
     return;
@@ -1692,7 +1714,9 @@ function toggleMember(ownerId, id){
     if(p.id === ownerId){ showHint('하위 노드라 항상 그룹에 포함돼요', 2000); return; }
     if(p.groupId === ownerId){
       // 상위 노드가 멤버라 함께 포함된 노드 → 탭하면 그 가지 전체가 그룹에서 나감
+      const branchId = p.id;
       delete p.groupId;
+      moveOutsideGroup(map, ownerId, branchId);
       showHint('상위 노드와 함께 그룹에서 뺐어요 · 빈 곳 탭: 완료', 2500);
       save(); renderMap();
       return;
