@@ -1613,12 +1613,19 @@ function toggleGroup(){
   if(n.group){
     delete n.group;
     Object.values(map.nodes).forEach(x => { if(x.groupId === n.id) delete x.groupId; });
+    if(groupEditFor === n.id) groupEditFor = null;
     showHint('그룹을 해제했어요', 1500);
   }else{
     const label = prompt('그룹 이름 (비워두면 이름 없이 묶여요)', '');
     if(label === null) return;
     n.group = {label: label.trim()};
-    showHint('이 노드와 하위 노드가 그룹으로 묶였어요', 2200);
+    if(!childrenOf(map, n.id).length){
+      // 하위 노드가 없는 노드(독립 노드 등)는 바로 멤버 편집 모드로 — 탭해서 다른 노드를 담기
+      groupEditFor = n.id;
+      showHint('그룹을 만들었어요 · 다른 노드를 탭해 그룹에 담으세요 · 빈 곳 탭: 완료', 0);
+    }else{
+      showHint('이 노드와 하위 노드가 그룹으로 묶였어요', 2200);
+    }
   }
   save(); renderMap(); renderSelBar();
 }
