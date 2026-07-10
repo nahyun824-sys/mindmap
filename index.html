@@ -697,6 +697,11 @@ const TONES = {
   '#667eea':'#ffffff', '#d1f2eb':'#1e8449', '#fef3cd':'#856404', '#fce8e6':'#c0392b',
   '#e8daef':'#76448a', '#d6eaf8':'#1a5276', '#fdebd0':'#935116', '#eaecee':'#566573',
 };
+/* 하이라이트용 네온 컬러: 노드 색(파스텔) → 채도 높은 발광색 */
+const NEON = {
+  '#667eea':'#4d5dff', '#d1f2eb':'#00e676', '#fef3cd':'#ffd600', '#fce8e6':'#ff2e63',
+  '#e8daef':'#d500f9', '#d6eaf8':'#00b0ff', '#fdebd0':'#ff9100', '#eaecee':'#00e5ff',
+};
 const CATS = {
   move:{label:'이동',emoji:'🚗',fg:'#1a5276'},
   food:{label:'식사',emoji:'🍽️',fg:'#935116'},
@@ -1349,15 +1354,15 @@ function renderMap(){
     g.dataset.id = n.id;
 
     if(n.hl){
+      const neon = NEON[n.color] || '#00e5ff';
       const halo = document.createElementNS(SVGNS,'rect');
-      halo.setAttribute('x',-w/2-5); halo.setAttribute('y',-h/2-5);
-      halo.setAttribute('width',w+10); halo.setAttribute('height',h+10);
-      halo.setAttribute('rx',(isRoot ? 14 : 11)+5);
-      halo.setAttribute('fill', n.color);
-      halo.setAttribute('fill-opacity', .38);
-      halo.setAttribute('stroke', n.color);
-      halo.setAttribute('stroke-width', 1.5);
-      halo.setAttribute('stroke-opacity', .8);
+      halo.setAttribute('x',-w/2-3.5); halo.setAttribute('y',-h/2-3.5);
+      halo.setAttribute('width',w+7); halo.setAttribute('height',h+7);
+      halo.setAttribute('rx',(isRoot ? 14 : 11)+3.5);
+      halo.setAttribute('fill','none');
+      halo.setAttribute('stroke', neon);
+      halo.setAttribute('stroke-width', 3.5);
+      halo.style.filter = `drop-shadow(0 0 4px ${neon}) drop-shadow(0 0 10px ${neon})`;
       g.appendChild(halo);
     }
     const rect = document.createElementNS(SVGNS,'rect');
@@ -1387,7 +1392,7 @@ function renderMap(){
 
     const text = document.createElementNS(SVGNS,'text');
     text.setAttribute('font-size', isRoot ? 15 : 13.5);
-    text.setAttribute('font-weight', isRoot ? 700 : 600);
+    text.setAttribute('font-weight', n.hl ? 800 : (isRoot ? 700 : 600));
     text.setAttribute('dominant-baseline','central');
     if(!isRoot){
       text.setAttribute('text-anchor','start');
