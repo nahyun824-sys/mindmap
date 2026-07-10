@@ -520,6 +520,7 @@
   <div class="top-bar">
     <button class="nav-btn" id="btnBack" onclick="goHome()">‹</button>
     <div class="tb-title" id="tbTitle"></div>
+    <button class="nav-btn" id="btnAddFree" onclick="addFreeNode()" title="독립 노드 추가"></button>
     <button class="nav-btn" id="btnGroups" onclick="openGroupSheet()" title="그룹 관리"></button>
     <button class="nav-btn" id="btnLayout" onclick="autoLayout()" title="자동 정돈"></button>
     <button class="nav-btn" id="btnItin" onclick="openPlan()" title="플래너"></button>
@@ -775,6 +776,7 @@ let curMapId = null;
 let sel = null;
 let searchQ = '';
 let linkFrom = null;      // 연결 모드: 시작 노드 id
+let parentFrom = null;    // 부모 연결 모드: 자식이 될 노드 id
 let groupJoinFrom = null; // 그룹에 넣기 모드: 대상 노드 id
 let groupEditFor = null;  // 그룹 멤버 편집 모드: 그룹 소유 노드 id
 
@@ -957,7 +959,7 @@ function show(scr){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(scr).classList.add('active');
 }
-function goHome(){ curMapId = null; sel = null; linkFrom = null; groupJoinFrom = null; groupEditFor = null; closeSheets(); renderHome(); show('scrHome'); }
+function goHome(){ curMapId = null; sel = null; linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null; closeSheets(); renderHome(); show('scrHome'); }
 function showHint(msg, ms = 4000){
   const h = document.getElementById('mmHint');
   h.textContent = msg;
@@ -967,7 +969,7 @@ function showHint(msg, ms = 4000){
 }
 function hideHint(){ clearTimeout(showHint._t); document.getElementById('mmHint').style.opacity = '0'; }
 function openMap(id){
-  curMapId = id; sel = null; linkFrom = null; groupJoinFrom = null; groupEditFor = null;
+  curMapId = id; sel = null; linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null;
   show('scrMap');
   const map = curMap();
   document.getElementById('tbTitle').textContent = map.name;
@@ -1521,6 +1523,9 @@ function endPointer(e){
       }else if(linkFrom){
         if(id !== linkFrom) createLink(linkFrom, id);
         linkFrom = null; hideHint();
+      }else if(parentFrom){
+        if(id !== parentFrom) setParentOf(parentFrom, id);
+        parentFrom = null; hideHint();
       }else if(lastTap.id === id && Date.now()-lastTap.t < 380){
         lastTap = {t:0, id:null};
         openEdit(id);
@@ -1538,6 +1543,9 @@ function endPointer(e){
     }else if(linkFrom){
       linkFrom = null; hideHint();
       showHint('연결을 취소했어요', 1500);
+    }else if(parentFrom){
+      parentFrom = null; hideHint();
+      showHint('부모 연결을 취소했어요', 1500);
     }else if(drag.linkId){
       openLinkEdit(drag.linkId);
     }else{
@@ -1567,10 +1575,13 @@ function renderSelBar(){
   const n = map && sel ? map.nodes[sel] : null;
   if(!n){ bar.classList.remove('show'); return; }
   const btn = (icName, label, fn, cls='') => `<button class="${cls}" data-fn="${fn}">${ic(icName,16)}<span>${label}</span></button>`;
+  const hasParent = !!(n.parentId && map.nodes[n.parentId]);
   let html = btn('edit','편집','edit');
   html += btn('plus','자식','addChild');
-  if(n.type !== 'root') html += btn('plus','형제','addSibling');
+  if(n.type !== 'root' && hasParent) html += btn('plus','형제','addSibling');
   if(map.kind === 'trip' && n.type !== 'root') html += btn('cal','일정에 추가','toplan');
+  if(n.type !== 'root') html += btn('link', hasParent ? '부모 변경' : '부모 연결', 'setParent');
+  if(n.type !== 'root' && hasParent) html += btn('minus','부모 해제','detach');
   html += btn('link','연결','link');
   html += btn('group', n.group ? '그룹 해제' : '그룹', 'group');
   if(!n.group){
@@ -1586,6 +1597,8 @@ function renderSelBar(){
     else if(fn === 'addChild') addChild(sel);
     else if(fn === 'addSibling'){ const p = map.nodes[sel]; if(p && p.parentId) addChild(p.parentId); }
     else if(fn === 'toplan') sendToPlan(sel);
+    else if(fn === 'setParent') startParentLink();
+    else if(fn === 'detach') detachParent();
     else if(fn === 'link') startLink();
     else if(fn === 'group') toggleGroup();
     else if(fn === 'groupJoin') startJoinGroup();
@@ -1816,6 +1829,56 @@ function addChild(parentId){
   save(); renderMap(); renderSelBar();
   openEdit(n.id);
 }
+/* 부모 없이 캔버스에 바로 만드는 독립 노드 */
+function addFreeNode(){
+  const map = curMap(); if(!map) return;
+  const r = wrap.getBoundingClientRect();
+  const c = screenToWorld(r.left + r.width/2, r.top + r.height/2);
+  let x = Math.round(c.x), y = Math.round(c.y), guard = 0;
+  while(guard++ < 30 && Object.values(map.nodes).some(o => Math.abs(o.x - x) < 90 && Math.abs(o.y - y) < 46)) y += 58;
+  const n = {
+    id: uid(), parentId: null, type:'idea', text:'새 노드',
+    color: PALETTE[Object.keys(map.nodes).length % PALETTE.length],
+    x, y, meta:{},
+    ord: Object.values(map.nodes).reduce((mx,o) => Math.max(mx, o.ord||0), 0) + 1
+  };
+  map.nodes[n.id] = n;
+  sel = n.id;
+  save(); renderMap(); renderSelBar();
+  openEdit(n.id);
+}
+/* 선택한 노드의 부모를 다른 노드로 지정 */
+function startParentLink(){
+  if(!sel) return;
+  parentFrom = sel;
+  showHint('부모로 삼을 노드를 탭하세요 · 빈 곳 탭: 취소', 0);
+}
+function setParentOf(childId, newParentId){
+  const map = curMap(); if(!map) return;
+  const n = map.nodes[childId], p = map.nodes[newParentId];
+  if(!n || !p) return;
+  if(n.parentId === newParentId){ showHint('이미 부모-자식으로 연결돼 있어요', 1800); return; }
+  // 순환 방지: 새 부모가 이 노드의 하위면 연결 불가
+  let a = p, guard = 0;
+  while(a && guard++ < 100){
+    if(a.id === childId){ showHint('하위 노드는 부모로 삼을 수 없어요', 2000); return; }
+    a = map.nodes[a.parentId];
+  }
+  n.ord = childrenOf(map, newParentId).reduce((mx,x) => Math.max(mx, x.ord||0), 0) + 1;
+  n.parentId = newParentId;
+  // 같은 두 노드를 잇는 교차 연결선은 부모 선과 겹치므로 제거
+  map.links = (map.links || []).filter(l =>
+    !((l.from === childId && l.to === newParentId) || (l.from === newParentId && l.to === childId)));
+  sel = childId;
+  save(); renderMap(); renderSelBar();
+  showHint('부모-자식으로 연결했어요', 1800);
+}
+function detachParent(){
+  const map = curMap(); const n = map && map.nodes[sel]; if(!n || !n.parentId) return;
+  n.parentId = null;
+  save(); renderMap(); renderSelBar();
+  showHint('독립 노드로 분리했어요', 1800);
+}
 function deleteNode(){
   const map = curMap(); const n = map && map.nodes[sel]; if(!n) return;
   if(n.type === 'root'){ alert('중심 노드는 삭제할 수 없어요.'); return; }
@@ -1862,7 +1925,13 @@ function autoLayout(){
       ty += cH + GAP;
     }
   }
-  place(map.rootId, 0, -h(map.rootId)/2);
+  let top = -h(map.rootId)/2;
+  if(map.nodes[map.rootId]){ place(map.rootId, 0, top); top += h(map.rootId); }
+  // 독립 노드(부모 없음)의 트리는 중심 트리 아래에 차례로 배치
+  const freeRoots = Object.values(map.nodes)
+    .filter(n => n.id !== map.rootId && (!n.parentId || !map.nodes[n.parentId]))
+    .sort((a,b) => (a.ord||0) - (b.ord||0));
+  for(const fr of freeRoots){ top += 60; place(fr.id, 0, top); top += h(fr.id); }
   save(); renderMap(); zoomFit();
 }
 
@@ -1890,7 +1959,7 @@ function openEdit(id){
     title.textContent = '노드 편집';
     html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
   }
-  if(n.type !== 'root'){
+  if(n.type !== 'root' && n.parentId && map.nodes[n.parentId]){
     html += `<div class="field"><label>연결선 설명 (부모와 잇는 선 위에 표시)</label><input name="edge" value="${esc(n.edgeLabel||'')}" placeholder="예: 이유, 이동수단, 관계 등"></div>`;
   }
   if(n.group){
@@ -2487,6 +2556,7 @@ function diffMapChanges(a, b){
     if(!o) L.push(`노드 '${snip(n.text)}' 추가`);
     else if(o.text !== n.text) L.push(`노드 '${snip(o.text)}' → '${snip(n.text)}'`);
     else if(o.color !== n.color || (o.edgeLabel||'') !== (n.edgeLabel||'')
+      || (o.parentId||null) !== (n.parentId||null)
       || JSON.stringify(o.group||null) !== JSON.stringify(n.group||null)
       || (o.groupId||null) !== (n.groupId||null)) L.push(`노드 '${snip(n.text)}' 수정`);
   });
@@ -2723,6 +2793,7 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
 (function boot(){
   const set = (id, name, size) => { const el = document.getElementById(id); if(el) el.innerHTML = ic(name, size); };
   set('searchIc','search',16);
+  set('btnAddFree','plus',18);
   set('btnGroups','group',17);
   set('btnLayout','layout',17);
   set('btnItin','list',18);
