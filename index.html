@@ -1371,7 +1371,7 @@ function renderMap(){
       halo.setAttribute('fill-opacity', .2);
       halo.setAttribute('stroke', hc);
       halo.setAttribute('stroke-width', 2);
-      halo.style.filter = `drop-shadow(0 0 3px ${hc}) drop-shadow(0 0 8px ${hc})`;
+      halo.style.filter = `drop-shadow(0 0 3px ${hc})`;
       g.appendChild(halo);
     }
     const rect = document.createElementNS(SVGNS,'rect');
