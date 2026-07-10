@@ -684,6 +684,7 @@ const I = {
   cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   link:'<path d="M10 14a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 10a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
   group:'<rect x="3.5" y="5" width="17" height="14" rx="3.5" stroke-dasharray="3.4 3"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/>',
+  star:'<path d="m12 3.6 2.6 5.2 5.8.9-4.2 4.1 1 5.7-5.2-2.7-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z"/>',
 };
 const ic = (name, size=20, sw=1.8) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[name]||''}</svg>`;
@@ -1347,6 +1348,18 @@ function renderMap(){
     g.setAttribute('transform',`translate(${n.x},${n.y})`);
     g.dataset.id = n.id;
 
+    if(n.hl){
+      const halo = document.createElementNS(SVGNS,'rect');
+      halo.setAttribute('x',-w/2-5); halo.setAttribute('y',-h/2-5);
+      halo.setAttribute('width',w+10); halo.setAttribute('height',h+10);
+      halo.setAttribute('rx',(isRoot ? 14 : 11)+5);
+      halo.setAttribute('fill', n.color);
+      halo.setAttribute('fill-opacity', .38);
+      halo.setAttribute('stroke', n.color);
+      halo.setAttribute('stroke-width', 1.5);
+      halo.setAttribute('stroke-opacity', .8);
+      g.appendChild(halo);
+    }
     const rect = document.createElementNS(SVGNS,'rect');
     rect.setAttribute('x',-w/2); rect.setAttribute('y',-h/2);
     rect.setAttribute('width',w); rect.setAttribute('height',h);
@@ -1582,6 +1595,7 @@ function renderSelBar(){
   if(map.kind === 'trip' && n.type !== 'root') html += btn('cal','일정에 추가','toplan');
   if(n.type !== 'root') html += btn('link', hasParent ? '부모 변경' : '부모 연결', 'setParent');
   if(n.type !== 'root' && hasParent) html += btn('minus','부모 해제','detach');
+  html += btn('star', n.hl ? '하이라이트 해제' : '하이라이트', 'hl');
   html += btn('link','연결','link');
   html += btn('group', n.group ? '그룹 해제' : '그룹', 'group');
   if(!n.group){
@@ -1599,6 +1613,7 @@ function renderSelBar(){
     else if(fn === 'toplan') sendToPlan(sel);
     else if(fn === 'setParent') startParentLink();
     else if(fn === 'detach') detachParent();
+    else if(fn === 'hl') toggleHighlight();
     else if(fn === 'link') startLink();
     else if(fn === 'group') toggleGroup();
     else if(fn === 'groupJoin') startJoinGroup();
@@ -1879,6 +1894,13 @@ function setParentOf(childId, newParentId){
   sel = childId;
   save(); renderMap(); renderSelBar();
   showHint('부모-자식으로 연결했어요', 1800);
+}
+/* 노드 하이라이트(색상 후광) 켜기/끄기 */
+function toggleHighlight(){
+  const map = curMap(); const n = map && map.nodes[sel]; if(!n) return;
+  if(n.hl) delete n.hl; else n.hl = true;
+  save(); renderMap(); renderSelBar();
+  showHint(n.hl ? '하이라이트를 켰어요' : '하이라이트를 껐어요', 1500);
 }
 function detachParent(){
   const map = curMap(); const n = map && map.nodes[sel]; if(!n || !n.parentId) return;
@@ -2563,7 +2585,7 @@ function diffMapChanges(a, b){
     if(!o) L.push(`노드 '${snip(n.text)}' 추가`);
     else if(o.text !== n.text) L.push(`노드 '${snip(o.text)}' → '${snip(n.text)}'`);
     else if(o.color !== n.color || (o.edgeLabel||'') !== (n.edgeLabel||'')
-      || (o.parentId||null) !== (n.parentId||null)
+      || (o.parentId||null) !== (n.parentId||null) || !!o.hl !== !!n.hl
       || JSON.stringify(o.group||null) !== JSON.stringify(n.group||null)
       || (o.groupId||null) !== (n.groupId||null)) L.push(`노드 '${snip(n.text)}' 수정`);
   });
