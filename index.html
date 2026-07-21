@@ -360,6 +360,13 @@
   }
   .viewing-banner.on{display:flex;}
   .viewing-banner.on + .app-header{padding-top:12px;}
+  .conn-banner{
+    display:none; background:var(--red-soft); color:var(--red);
+    position:absolute; top:0; left:0; right:0; z-index:60;
+    padding:calc(8px + var(--sat)) 16px 8px; align-items:center; justify-content:center;
+    font-size:12.5px; font-weight:600; text-align:center; line-height:1.5;
+  }
+  .conn-banner.on{display:flex;}
   .back-btn{background:rgba(255,255,255,.22); border-radius:8px; padding:5px 12px; font-size:12px; color:#fff; flex:0 0 auto;}
   .header-right{display:flex; align-items:center; gap:10px;}
   .user-avatar{
@@ -396,6 +403,8 @@
 </style>
 </head>
 <body>
+
+<div class="conn-banner" id="connBanner"></div>
 
 <!-- ═══════════ 로그인 ═══════════ -->
 <div class="screen" id="scrLogin">
@@ -2511,18 +2520,41 @@ const firebaseConfig = {
 const cloud = {
   on:false, me:null, viewingUid:null, viewingName:'',
   unsubs:[], pushT:null, lastPushed:{}, lastTopics:'',
-  sharedWith:[], sharedMaps:[], logEntries:[]
+  sharedWith:[], sharedMaps:[], logEntries:[], reconnAttempts:0
 };
-let fbAuth = null, fbDb = null;
+let fbAuth = null, fbDb = null, reconnT = null;
 const configReady = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 try{
   if(window.firebase && configReady){
     firebase.initializeApp(firebaseConfig);
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
+    /* 회사망/공용 와이파이 등에서 기본 연결(WebChannel)이 막혀 "접속 안 됨"이 되는 경우 대비 */
+    fbDb.settings({experimentalAutoDetectLongPolling:true, merge:true});
+    /* 짧은 네트워크 끊김에도 로컬에 쓰기/읽기가 계속되고, 재연결 시 자동으로 서버와 동기화됨 */
+    fbDb.enablePersistence({synchronizeTabs:true}).catch(e => {
+      if(e.code !== 'failed-precondition' && e.code !== 'unimplemented') console.warn('Firestore 오프라인 캐시 활성화 실패:', e);
+    });
     cloud.on = true;
   }
-}catch(e){ cloud.on = false; }
+}catch(e){ if(configReady) console.error('Firebase 초기화 실패:', e); cloud.on = false; }
+function setConnBanner(mode){
+  const el = document.getElementById('connBanner');
+  if(!el) return;
+  if(mode === 'ok'){ el.classList.remove('on'); return; }
+  el.textContent = mode === 'offline'
+    ? '📴 오프라인이에요 · 연결되면 자동으로 동기화돼요'
+    : '🔌 연결이 끊겼어요 · 재연결 시도 중…';
+  el.classList.add('on');
+}
+window.addEventListener('online', () => { setConnBanner('ok'); if(cloud.on && cloud.me) scheduleReconnect(true); });
+window.addEventListener('offline', () => setConnBanner('offline'));
+function scheduleReconnect(immediate){
+  if(reconnT) return;
+  const n = cloud.reconnAttempts = immediate ? 0 : (cloud.reconnAttempts||0) + 1;
+  const wait = immediate ? 0 : Math.min(30000, 1000 * Math.pow(2, Math.min(n, 5)));
+  reconnT = setTimeout(() => { reconnT = null; if(cloud.on && cloud.me) startCloudListeners(); }, wait);
+}
 function isShared(){ return !!cloud.viewingUid; }
 const workUid = () => cloud.viewingUid || (cloud.me && cloud.me.uid);
 /* 모든 앱 데이터는 users/{uid}/mindmaps 아래: 맵 문서들 + '_meta'(주제 트리) */
@@ -2542,11 +2574,12 @@ if(cloud.on){
           history.replaceState({}, '', location.pathname);
         }
         await firstSyncMigrate();
-      }catch(e){ /* 오프라인이면 로컬 데이터로 계속 */ }
+      }catch(e){ console.warn('초기 동기화 실패, 로컬 데이터로 계속:', e); }
       startCloudListeners();
       goHome();
     }else{
       stopCloudListeners();
+      setConnBanner('ok');
       cloud.viewingUid = null; cloud.viewingName = '';
       document.getElementById('viewingBanner').classList.remove('on');
       document.getElementById('userAvatar').classList.remove('on');
@@ -2644,13 +2677,13 @@ function appendLog(uid0, items){
   };
   const entries = [entry, ...(cloud.logEntries||[])].slice(0, 50);
   cloud.logEntries = entries;
-  mapsCol(uid0).doc('_log').set({entries: cleanJSON(entries)}).catch(() => {});
+  mapsCol(uid0).doc('_log').set({entries: cleanJSON(entries)}).catch(e => console.warn('변경 로그 저장 실패:', e));
 }
 function clearLog(){
   if(!cloud.on || !cloud.me) return;
   if(!confirm('변경 로그를 모두 지울까요?')) return;
   cloud.logEntries = [];
-  mapsCol(workUid()).doc('_log').set({entries: []}).catch(() => {});
+  mapsCol(workUid()).doc('_log').set({entries: []}).catch(e => console.warn('변경 로그 삭제 실패:', e));
   renderShareUI();
 }
 function fmtLogTime(ms){
@@ -2703,7 +2736,10 @@ function pushDiff(){
     cloud.lastTopics = tj;
     dirty = true;
   }
-  if(dirty) batch.commit().catch(() => {});  // 오프라인이면 SDK가 재연결 시 전송
+  if(dirty) batch.commit().then(() => setConnBanner('ok')).catch(e => {
+    console.warn('Firestore 저장 실패:', e);
+    setConnBanner('error');
+  });  // 오프라인이면 SDK가 큐에 쌓아뒀다가 재연결 시 전송
   appendLog(uid0, logItems);
 }
 
@@ -2712,7 +2748,13 @@ let pendingRemote = null;
 function startCloudListeners(){
   stopCloudListeners();
   const uid0 = workUid(); if(!uid0) return;
+  const onListenErr = label => e => {
+    console.warn(`Firestore 리스너 오류(${label}):`, e);
+    setConnBanner('error');
+    scheduleReconnect();
+  };
   cloud.unsubs.push(mapsCol(uid0).onSnapshot(snap => {
+    cloud.reconnAttempts = 0; setConnBanner('ok');
     if(snap.metadata.fromCache) return;   // 오프라인 캐시로 로컬 데이터를 덮어쓰지 않음
     const maps = [];
     let topics = null;
@@ -2723,17 +2765,20 @@ function startCloudListeners(){
     });
     renderShareUI();
     applyRemote({maps, topics});
-  }, () => {}));
+  }, onListenErr('maps')));
   cloud.unsubs.push(fbDb.collection('users').doc(cloud.me.uid).collection('mmSharedWith').onSnapshot(snap => {
     cloud.sharedWith = []; snap.forEach(d => cloud.sharedWith.push({...d.data(), docId:d.id}));
     renderShareUI();
-  }, () => {}));
+  }, onListenErr('sharedWith')));
   cloud.unsubs.push(fbDb.collection('users').doc(cloud.me.uid).collection('mmShared').onSnapshot(snap => {
     cloud.sharedMaps = []; snap.forEach(d => cloud.sharedMaps.push(d.data()));
     renderShareUI();
-  }, () => {}));
+  }, onListenErr('shared')));
 }
-function stopCloudListeners(){ cloud.unsubs.forEach(u => u()); cloud.unsubs = []; }
+function stopCloudListeners(){
+  cloud.unsubs.forEach(u => u()); cloud.unsubs = [];
+  clearTimeout(reconnT); reconnT = null;
+}
 function applyRemote(part){
   if(drag){ pendingRemote = part; return; }
   // 에코 재푸시 방지용 트래커 갱신
