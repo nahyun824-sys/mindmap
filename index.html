@@ -147,6 +147,12 @@
     color:var(--sub); flex:0 0 auto; font-size:15px;
   }
   .mc-btn:active{background:var(--field);}
+  .mc-drag{
+    width:22px; height:40px; display:flex; align-items:center; justify-content:center;
+    color:var(--sub); flex:0 0 auto; touch-action:none; cursor:grab; margin-right:-4px;
+  }
+  .mc-drag:active{cursor:grabbing;}
+  .map-card.dragging{box-shadow:var(--shadow-lg); opacity:.96;}
   .home-empty{text-align:center; color:var(--sub); padding:48px 20px 20px; font-size:13.5px; line-height:1.8;}
   .home-empty .e-icon{font-size:44px; display:block; margin-bottom:12px;}
 
@@ -200,6 +206,25 @@
     font-size:11.5px; color:var(--sub); background:var(--panel);
     padding:7px 15px; border-radius:20px; pointer-events:none; white-space:nowrap; transition:opacity .5s;
     box-shadow:var(--shadow); font-weight:500;
+  }
+  .budget-badge{
+    position:absolute; top:12px; left:12px; z-index:5; display:none; align-items:center; gap:6px;
+    background:var(--panel); color:var(--text); box-shadow:var(--shadow); border-radius:12px;
+    padding:8px 13px; font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+  .budget-badge:active{background:var(--field);}
+  .budget-badge .bb-ic{font-size:14px;}
+  .budget-detail{
+    position:absolute; top:54px; left:12px; z-index:6; display:none;
+    background:var(--panel); box-shadow:var(--shadow-md); border-radius:14px;
+    padding:10px 13px; min-width:172px; max-width:220px;
+  }
+  .budget-detail.show{display:block; animation:popIn .15s ease;}
+  .budget-row{display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; color:var(--body); padding:4px 0;}
+  .budget-row .bcat{display:flex; align-items:center; gap:6px;}
+  .budget-total{
+    display:flex; justify-content:space-between; gap:12px; font-size:12.5px; font-weight:800;
+    color:var(--primary); border-top:1px solid var(--line); margin-top:5px; padding-top:7px;
   }
   .sel-bar{
     position:absolute; left:12px; right:12px; bottom:calc(14px + var(--sab)); z-index:15;
@@ -541,6 +566,8 @@
   <div id="canvasWrap">
     <svg id="mmSvg"><g id="world"></g></svg>
     <div class="mm-hint" id="mmHint">탭: 선택 · 두 번 탭: 편집 · 두 손가락: 확대/축소</div>
+    <div class="budget-badge" id="budgetBadge" onclick="toggleBudgetDetail()"><span class="bb-ic">💰</span><span id="budgetTotalText"></span></div>
+    <div class="budget-detail" id="budgetDetail"></div>
     <div class="zoom-ctl">
       <button id="btnZoomIn" onclick="zoomBy(1.25)"></button>
       <button id="btnZoomFit" onclick="zoomFit()"></button>
@@ -698,6 +725,7 @@ const I = {
   link:'<path d="M10 14a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 10a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
   group:'<rect x="3.5" y="5" width="17" height="14" rx="3.5" stroke-dasharray="3.4 3"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/>',
   star:'<path d="m12 3.6 2.6 5.2 5.8.9-4.2 4.1 1 5.7-5.2-2.7-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z"/>',
+  grip:'<circle cx="8" cy="6" r="1.4" fill="currentColor"/><circle cx="16" cy="6" r="1.4" fill="currentColor"/><circle cx="8" cy="12" r="1.4" fill="currentColor"/><circle cx="16" cy="12" r="1.4" fill="currentColor"/><circle cx="8" cy="18" r="1.4" fill="currentColor"/><circle cx="16" cy="18" r="1.4" fill="currentColor"/>',
 };
 const ic = (name, size=20, sw=1.8) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[name]||''}</svg>`;
@@ -727,6 +755,23 @@ const CATS = {
   shop:{label:'쇼핑',emoji:'🛍️',fg:'#c0392b'},
   etc:{label:'기타',emoji:'📌',fg:'#566573'},
 };
+/* 노드 금액의 가계부 분류 (마인드맵 예산 요약용) */
+const COST_CATS = {
+  food:{label:'식비',emoji:'🍽️'},
+  house:{label:'주거',emoji:'🏠'},
+  move:{label:'교통',emoji:'🚗'},
+  life:{label:'생활',emoji:'🧺'},
+  shop:{label:'쇼핑',emoji:'🛍️'},
+  culture:{label:'문화',emoji:'🎬'},
+  medical:{label:'의료',emoji:'💊'},
+  edu:{label:'교육',emoji:'📚'},
+  etc:{label:'기타',emoji:'📌'},
+};
+function costCatOptions(sel){
+  const s = (sel && COST_CATS[sel]) ? sel : 'etc';
+  return Object.entries(COST_CATS).map(([k,v]) =>
+    `<option value="${k}" ${k===s?'selected':''}>${v.emoji} ${v.label}</option>`).join('');
+}
 const DAY_NAMES = ['일','월','화','수','목','금','토'];
 const uid = () => Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -841,6 +886,18 @@ function normalize(s){
     }
     Object.values(m.nodes || {}).forEach(n => { if(n.type === 'day' || n.type === 'item') n.type = 'idea'; });
   });
+  /* 주제별 마인드맵 정렬 순서(ord): 없으면 주제 그룹 안에서 등장 순서대로 부여 */
+  {
+    const maxOrd = {};
+    s.maps.forEach(m => { const k = m.topicId||null; if(typeof m.ord === 'number') maxOrd[k] = Math.max(maxOrd[k] === undefined ? -1 : maxOrd[k], m.ord); });
+    s.maps.forEach(m => {
+      const k = m.topicId||null;
+      if(typeof m.ord !== 'number'){
+        maxOrd[k] = (maxOrd[k] === undefined ? -1 : maxOrd[k]) + 1;
+        m.ord = maxOrd[k];
+      }
+    });
+  }
   return s;
 }
 function applyTheme(){
@@ -891,6 +948,22 @@ function childrenOf(map, id){
 function nodeLabel(map, n){
   return n.text || ' ';
 }
+/* 노드 자신의 금액 + 모든 하위 노드 금액의 합 (금액을 입력한 노드가 하나도 없으면 0) */
+function nodeCostTotal(map, id){
+  const n = map.nodes[id]; if(!n) return 0;
+  return (Number(n.cost)||0) + childrenOf(map, id).reduce((s,c) => s + nodeCostTotal(map, c.id), 0);
+}
+/* 맵 전체에서 직접 입력된 금액들을 분류별로 합산 (가계부 요약용) */
+function mapBudgetByCat(map){
+  const sums = {};
+  Object.values(map.nodes).forEach(n => {
+    const c = Number(n.cost)||0;
+    if(c <= 0) return;
+    const cat = (n.costCat && COST_CATS[n.costCat]) ? n.costCat : 'etc';
+    sums[cat] = (sums[cat]||0) + c;
+  });
+  return sums;
+}
 /* ── 플래너(plan) 헬퍼: 일정은 노드가 아니라 map.plan에 분리 저장 ── */
 /* 일정 항목은 subs로 최대 3단계(대/중/소) 중첩 */
 const DEPTH_NAMES = ['대분류','중분류','소분류'];
@@ -929,7 +1002,7 @@ function findPlanItem(m, id){
 
 /* ════════════════ 주제(폴더) 트리 ════════════════ */
 const topicChildren = pid => state.topics.filter(t => (t.parentId||null) === pid);
-const mapsIn = tid => state.maps.filter(m => (m.topicId||null) === tid);
+const mapsIn = tid => state.maps.filter(m => (m.topicId||null) === tid).sort((a,b) => (a.ord||0) - (b.ord||0));
 function topicById(id){ return state.topics.find(t => t.id === id) || null; }
 function topicPath(tid){
   const parts = [];
@@ -993,6 +1066,7 @@ function showHint(msg, ms = 4000){
 function hideHint(){ clearTimeout(showHint._t); document.getElementById('mmHint').style.opacity = '0'; }
 function openMap(id){
   curMapId = id; sel = null; linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null;
+  document.getElementById('budgetDetail').classList.remove('show');
   show('scrMap');
   const map = curMap();
   document.getElementById('tbTitle').textContent = map.name;
@@ -1005,7 +1079,7 @@ function openMap(id){
 }
 
 /* ════════════════ 홈 렌더 ════════════════ */
-function mapCard(m, showPath){
+function mapCard(m, showPath, draggable){
   const cnt = Object.keys(m.nodes).length - 1;
   const rng = planRange(m);
   const sub = m.kind === 'trip'
@@ -1013,6 +1087,7 @@ function mapCard(m, showPath){
     : `노드 ${cnt}개`;
   const path = showPath && m.topicId ? `${esc(topicPath(m.topicId))} · ` : '';
   return `<div class="map-card" data-mapid="${m.id}">
+    ${draggable === false ? '' : `<span class="mc-drag" title="드래그해서 순서 변경">${ic('grip',18,2)}</span>`}
     <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
     <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${path}${sub}</div></div>
     <button class="mc-btn" data-act="settings">⋯</button>
@@ -1029,7 +1104,7 @@ function renderHome(){
       (m.topicId && topicPath(m.topicId).toLowerCase().includes(q))
     );
     html = `<div class="topic-row" style="cursor:default"><span class="topic-name">검색 결과</span><span class="topic-cnt">${hits.length}</span></div>`;
-    html += hits.length ? hits.map(m => mapCard(m, true)).join('')
+    html += hits.length ? hits.map(m => mapCard(m, true, false)).join('')
       : '<div class="home-empty">검색 결과가 없어요</div>';
   }else if(!state.maps.length && !state.topics.length){
     html = `<div class="home-empty">
@@ -1085,13 +1160,77 @@ function renderHome(){
   });
   box.querySelectorAll('.map-card').forEach(el => {
     el.addEventListener('click', e => {
+      if(e.target.closest('.mc-drag')) return;
       const id = el.dataset.mapid;
       if(e.target.closest('[data-act="settings"]')){
         e.stopPropagation(); openMapSettings(id); return;
       }
       openMap(id);
     });
+    const handle = el.querySelector('.mc-drag');
+    if(handle) handle.addEventListener('pointerdown', e => startMapDrag(handle, el, e));
   });
+}
+
+/* ════════════════ 홈: 마인드맵 카드 드래그 정렬 ════════════════ */
+let mapDrag = null;
+function startMapDrag(handle, card, e){
+  e.preventDefault();
+  e.stopPropagation();
+  const parent = card.parentElement;
+  const rect = card.getBoundingClientRect();
+  const placeholder = document.createElement('div');
+  placeholder.className = 'map-card';
+  placeholder.style.visibility = 'hidden';
+  placeholder.style.height = rect.height + 'px';
+  parent.insertBefore(placeholder, card.nextSibling);
+  card.style.position = 'fixed';
+  card.style.left = rect.left + 'px';
+  card.style.top = rect.top + 'px';
+  card.style.width = rect.width + 'px';
+  card.style.zIndex = 200;
+  card.classList.add('dragging');
+  handle.setPointerCapture(e.pointerId);
+  mapDrag = {pid:e.pointerId, handle, card, placeholder, parent, startY:e.clientY, baseTop:rect.top};
+  handle.addEventListener('pointermove', moveMapDrag);
+  handle.addEventListener('pointerup', endMapDrag);
+  handle.addEventListener('pointercancel', endMapDrag);
+}
+function moveMapDrag(e){
+  if(!mapDrag || e.pointerId !== mapDrag.pid) return;
+  const dy = e.clientY - mapDrag.startY;
+  const top = mapDrag.baseTop + dy;
+  mapDrag.card.style.top = top + 'px';
+  const cardMid = top + mapDrag.card.offsetHeight/2;
+  const sibs = Array.from(mapDrag.parent.children)
+    .filter(c => c !== mapDrag.card && c !== mapDrag.placeholder && c.classList.contains('map-card'));
+  let target = null;
+  for(const s of sibs){
+    const r = s.getBoundingClientRect();
+    if(cardMid < r.top + r.height/2){ target = s; break; }
+  }
+  if(target){
+    if(mapDrag.placeholder.nextSibling !== target) mapDrag.parent.insertBefore(mapDrag.placeholder, target);
+  }else if(mapDrag.parent.lastElementChild !== mapDrag.placeholder){
+    mapDrag.parent.appendChild(mapDrag.placeholder);
+  }
+}
+function endMapDrag(e){
+  if(!mapDrag || e.pointerId !== mapDrag.pid) return;
+  const {handle, card, placeholder, parent} = mapDrag;
+  handle.removeEventListener('pointermove', moveMapDrag);
+  handle.removeEventListener('pointerup', endMapDrag);
+  handle.removeEventListener('pointercancel', endMapDrag);
+  parent.insertBefore(card, placeholder);
+  parent.removeChild(placeholder);
+  card.style.position = ''; card.style.left = ''; card.style.top = ''; card.style.width = ''; card.style.zIndex = '';
+  card.classList.remove('dragging');
+  Array.from(parent.children).filter(c => c.classList.contains('map-card')).forEach((c,i) => {
+    const m = state.maps.find(x => x.id === c.dataset.mapid);
+    if(m) m.ord = i;
+  });
+  mapDrag = null;
+  save(); renderHome();
 }
 document.getElementById('searchInput').addEventListener('input', e => {
   searchQ = e.target.value;
@@ -1107,9 +1246,11 @@ function createMap(form){
   const f = new FormData(form);
   const name = String(f.get('name')).trim() || '새 마인드맵';
   const rid = uid();
+  const topicId = f.get('topic') || null;
   const map = {
-    id: uid(), kind:'idea', name, topicId: f.get('topic') || null,
+    id: uid(), kind:'idea', name, topicId,
     cam:{x:0,y:0,z:1}, rootId:rid,
+    ord: mapsIn(topicId).reduce((mx,x) => Math.max(mx, x.ord||0), -1) + 1,
     nodes:{[rid]:{id:rid,parentId:null,type:'root',text:name,color:PALETTE[0],x:0,y:0,meta:{}}}
   };
   state.maps.push(map);
@@ -1131,7 +1272,11 @@ function saveMapSettings(form){
   const m = state.maps.find(x => x.id === settingsMapId); if(!m) return false;
   const f = new FormData(form);
   m.name = String(f.get('name')).trim() || m.name;
-  m.topicId = f.get('topic') || null;
+  const newTopic = f.get('topic') || null;
+  if(newTopic !== (m.topicId||null)){
+    m.topicId = newTopic;
+    m.ord = mapsIn(newTopic).reduce((mx,x) => Math.max(mx, x.ord||0), -1) + 1;
+  }
   if(m.nodes[m.rootId]) m.nodes[m.rootId].text = m.name;
   save(); closeSheets(); renderHome();
   return false;
@@ -1424,9 +1569,43 @@ function renderMap(){
     if(label.length > 38) label = label.slice(0,37) + '…';
     text.textContent = label;
     g.appendChild(text);
+
+    const costTotal = nodeCostTotal(map, n.id);
+    if(costTotal > 0){
+      const costText = document.createElementNS(SVGNS,'text');
+      costText.setAttribute('x', 0);
+      costText.setAttribute('y', h/2 + 13);
+      costText.setAttribute('text-anchor','middle');
+      costText.setAttribute('font-size', 10);
+      costText.setAttribute('font-weight', 700);
+      costText.setAttribute('fill', C.sub);
+      costText.textContent = fmtWon(costTotal);
+      g.appendChild(costText);
+    }
     world.appendChild(g);
   }
+  renderBudgetPanel(map);
 }
+function renderBudgetPanel(map){
+  const badge = document.getElementById('budgetBadge');
+  const detail = document.getElementById('budgetDetail');
+  if(!map){ badge.style.display = 'none'; detail.classList.remove('show'); return; }
+  const sums = mapBudgetByCat(map);
+  const total = Object.values(sums).reduce((s,x) => s+x, 0);
+  if(total <= 0){ badge.style.display = 'none'; detail.classList.remove('show'); return; }
+  badge.style.display = 'flex';
+  document.getElementById('budgetTotalText').textContent = fmtWon(total);
+  const rows = Object.keys(COST_CATS).filter(k => sums[k] > 0)
+    .map(k => `<div class="budget-row"><span class="bcat">${COST_CATS[k].emoji} ${COST_CATS[k].label}</span><span>${fmtWon(sums[k])}</span></div>`)
+    .join('');
+  detail.innerHTML = rows + `<div class="budget-total"><span>합계</span><span>${fmtWon(total)}</span></div>`;
+}
+function toggleBudgetDetail(){ document.getElementById('budgetDetail').classList.toggle('show'); }
+document.addEventListener('click', e => {
+  const badge = document.getElementById('budgetBadge'), detail = document.getElementById('budgetDetail');
+  if(!badge || !detail) return;
+  if(!badge.contains(e.target) && !detail.contains(e.target)) detail.classList.remove('show');
+});
 if(window.matchMedia){
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme());
 }
@@ -2011,6 +2190,11 @@ function openEdit(id){
     title.textContent = '노드 편집';
     html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
   }
+  html += `<div class="field-row">
+    <div class="field"><label>금액 (원, 선택사항)</label><input name="cost" type="number" inputmode="numeric" min="0" step="100" value="${n.cost ? n.cost : ''}" placeholder="0"></div>
+    <div class="field"><label>분류</label><select name="costcat">${costCatOptions(n.costCat)}</select></div>
+  </div>
+  <div class="set-note" style="margin:-4px 0 11px">금액을 입력하지 않으면 하위 노드 합계만 표시돼요. 분류를 고르지 않으면 기타로 들어가요.</div>`;
   if(n.type !== 'root' && n.parentId && map.nodes[n.parentId]){
     html += `<div class="field"><label>연결선 설명 (부모와 잇는 선 위에 표시)</label><input name="edge" value="${esc(n.edgeLabel||'')}" placeholder="예: 이유, 이동수단, 관계 등"></div>`;
   }
@@ -2093,6 +2277,16 @@ function saveEdit(keepOpen){
   if(f.has('text')) n.text = String(f.get('text')).trim();
   if(!n.text && n.type !== 'root') n.text = '새 노드';
   if(f.has('edge')) n.edgeLabel = String(f.get('edge')).trim();
+  if(f.has('cost')){
+    const cv = f.get('cost');
+    const c = Number(cv);
+    if(cv === '' || isNaN(c) || c <= 0){ delete n.cost; delete n.costCat; }
+    else{
+      n.cost = c;
+      const cc = f.get('costcat');
+      n.costCat = (cc && COST_CATS[cc]) ? cc : 'etc';
+    }
+  }
   if(f.has('grouplabel') && n.group) n.group.label = String(f.get('grouplabel')).trim();
   if(f.has('groupsel')){
     const gid = f.get('groupsel');
