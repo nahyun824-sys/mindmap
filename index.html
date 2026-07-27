@@ -376,7 +376,13 @@
     font-size:15px; font-weight:600; color:var(--body);
   }
   .google-btn:active{background:var(--field);}
+  .google-btn:disabled{opacity:.55; cursor:default;}
   .google-logo{width:20px; height:20px;}
+  .btn-spinner{
+    width:18px; height:18px; border:2px solid var(--line2); border-top-color:var(--primary);
+    border-radius:50%; animation:btnspin .7s linear infinite; flex:0 0 auto;
+  }
+  @keyframes btnspin{to{transform:rotate(360deg);}}
   .login-note{margin-top:14px; font-size:12px; color:var(--sub); line-height:1.6;}
   .viewing-banner{
     display:none; background:var(--primary); color:var(--on-primary);
@@ -2736,13 +2742,14 @@ function setConnBanner(mode){
   const el = document.getElementById('connBanner');
   if(!el) return;
   if(mode === 'ok'){ el.classList.remove('on'); return; }
-  el.textContent = mode === 'offline'
-    ? '📴 오프라인이에요 · 연결되면 자동으로 동기화돼요'
+  el.textContent = mode === 'offline' ? '📴 오프라인이에요 · 연결되면 자동으로 동기화돼요'
+    : mode === 'perm' ? '🔒 접근 권한 문제로 동기화가 안 되고 있어요 · 다시 로그인해보세요'
     : '🔌 연결이 끊겼어요 · 재연결 시도 중…';
   el.classList.add('on');
 }
 window.addEventListener('online', () => { setConnBanner('ok'); if(cloud.on && cloud.me) scheduleReconnect(true); });
 window.addEventListener('offline', () => setConnBanner('offline'));
+if(!navigator.onLine) setConnBanner('offline');   // 오프라인 상태로 페이지를 열었을 때도 즉시 표시
 function scheduleReconnect(immediate){
   if(reconnT) return;
   const n = cloud.reconnAttempts = immediate ? 0 : (cloud.reconnAttempts||0) + 1;
@@ -2755,22 +2762,50 @@ const workUid = () => cloud.viewingUid || (cloud.me && cloud.me.uid);
 const mapsCol = uid0 => fbDb.collection('users').doc(uid0).collection('mindmaps');
 
 if(cloud.on){
+  const loginBtn = document.getElementById('googleLoginBtn');
+  const loginBtnHTML = loginBtn.innerHTML;
+  function setLoginLoading(loading){
+    loginBtn.disabled = loading;
+    loginBtn.innerHTML = loading ? '<span class="btn-spinner"></span>로그인 중…' : loginBtnHTML;
+  }
+  function loginErrorMessage(e){
+    const map = {
+      'auth/popup-blocked':'팝업이 차단됐어요. 브라우저의 팝업 차단 설정을 확인한 뒤 다시 시도해주세요.',
+      'auth/network-request-failed':'네트워크 연결을 확인한 뒤 다시 시도해주세요.',
+      'auth/unauthorized-domain':'이 주소에서는 Google 로그인을 사용할 수 없어요.'
+    };
+    return map[e.code] || (e.message || '알 수 없는 오류가 발생했어요.');
+  }
   fbAuth.onAuthStateChanged(async user => {
     cloud.me = user;
     if(user){
       renderAvatar();
-      try{
-        await fbDb.collection('users').doc(user.uid).set(
-          {email:user.email, name:user.displayName||user.email, photo:user.photoURL||''}, {merge:true});
-        const joinUid = new URLSearchParams(location.search).get('join');
-        if(joinUid && joinUid !== user.uid){
-          await handleJoin(joinUid);
-          history.replaceState({}, '', location.pathname);
-        }
-        await firstSyncMigrate();
-      }catch(e){ console.warn('초기 동기화 실패, 로컬 데이터로 계속:', e); }
+      /* 초기 동기화(사용자 문서 저장·초대 참여·마이그레이션)가 네트워크 문제로 멈춰도
+         화면 진입 자체는 막히지 않도록 타임아웃을 두고, 남은 작업은 백그라운드에서 계속함 */
+      const initSync = (async () => {
+        try{
+          await fbDb.collection('users').doc(user.uid).set(
+            {email:user.email, name:user.displayName||user.email, photo:user.photoURL||''}, {merge:true});
+          const joinUid = new URLSearchParams(location.search).get('join');
+          if(joinUid && joinUid !== user.uid){
+            await handleJoin(joinUid);
+            history.replaceState({}, '', location.pathname);
+          }
+          await firstSyncMigrate();
+        }catch(e){ console.warn('초기 동기화 실패, 로컬 데이터로 계속:', e); }
+      })();
+      const timedOut = await Promise.race([
+        initSync.then(() => false),
+        new Promise(resolve => setTimeout(() => resolve(true), 6000))
+      ]);
+      if(timedOut){
+        console.warn('초기 동기화가 지연되고 있어요. 앱을 먼저 열고 연결되면 이어서 동기화합니다.');
+        setConnBanner('error');
+        scheduleReconnect();
+      }
       startCloudListeners();
       goHome();
+      setLoginLoading(false);
     }else{
       stopCloudListeners();
       setConnBanner('ok');
@@ -2778,11 +2813,26 @@ if(cloud.on){
       document.getElementById('viewingBanner').classList.remove('on');
       document.getElementById('userAvatar').classList.remove('on');
       renderShareUI();
+      setLoginLoading(false);
       show('scrLogin');
     }
   });
-  document.getElementById('googleLoginBtn').addEventListener('click', () =>
-    fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => alert('로그인 실패: ' + e.message)));
+  loginBtn.addEventListener('click', () => {
+    if(loginBtn.disabled) return;
+    setLoginLoading(true);
+    let settled = false;
+    const stuckT = setTimeout(() => {
+      if(settled) return;
+      setLoginLoading(false);
+      alert('로그인 창이 응답하지 않아요. 팝업 차단 설정을 확인한 뒤 다시 시도해주세요.');
+    }, 20000);
+    fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(e => {
+        if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+        alert('로그인 실패: ' + loginErrorMessage(e));
+      })
+      .finally(() => { settled = true; clearTimeout(stuckT); setLoginLoading(false); });
+  });
 }
 function doSignOut(){
   if(!cloud.on) return;
@@ -2932,7 +2982,9 @@ function pushDiff(){
   }
   if(dirty) batch.commit().then(() => setConnBanner('ok')).catch(e => {
     console.warn('Firestore 저장 실패:', e);
+    if(e.code === 'permission-denied'){ setConnBanner('perm'); return; }
     setConnBanner('error');
+    scheduleReconnect();   // 쓰기 실패가 연결 문제였다면 배너가 계속 떠 있지 않도록 재연결을 트리거
   });  // 오프라인이면 SDK가 큐에 쌓아뒀다가 재연결 시 전송
   appendLog(uid0, logItems);
 }
@@ -2944,6 +2996,7 @@ function startCloudListeners(){
   const uid0 = workUid(); if(!uid0) return;
   const onListenErr = label => e => {
     console.warn(`Firestore 리스너 오류(${label}):`, e);
+    if(e.code === 'permission-denied'){ setConnBanner('perm'); return; }  // 재시도해도 소용없는 오류
     setConnBanner('error');
     scheduleReconnect();
   };
