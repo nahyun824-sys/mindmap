@@ -155,6 +155,41 @@
   .map-card.dragging{box-shadow:var(--shadow-lg); opacity:.96;}
   .home-empty{text-align:center; color:var(--sub); padding:48px 20px 20px; font-size:13.5px; line-height:1.8;}
   .home-empty .e-icon{font-size:44px; display:block; margin-bottom:12px;}
+  .sm-btn.on{background:var(--primary); color:var(--on-primary); border-color:var(--primary);}
+  .map-card.picked{box-shadow:0 0 0 2px var(--primary) inset;}
+  .mc-check{
+    width:22px; height:22px; border-radius:50%; border:1.6px solid var(--line2); flex:0 0 22px;
+    display:flex; align-items:center; justify-content:center; color:transparent; background:var(--panel); font-size:13px;
+  }
+  .map-card.picked .mc-check{background:var(--primary); border-color:var(--primary); color:var(--on-primary);}
+  .map-sel-bar{
+    position:absolute; left:12px; right:12px; bottom:calc(var(--nav) + var(--sab) + 12px); z-index:25;
+    display:none; align-items:center; gap:8px; padding:10px 10px 10px 16px; background:var(--panel);
+    border-radius:15px; box-shadow:var(--shadow-md);
+  }
+  .map-sel-bar.show{display:flex; animation:popIn .18s ease;}
+  .map-sel-bar .msb-count{flex:1; font-size:13px; font-weight:600; color:var(--body);}
+  .map-sel-bar button{padding:9px 14px; border-radius:10px; font-size:12.5px; font-weight:600; flex:0 0 auto;}
+  .map-sel-bar button.primary{background:var(--primary); color:var(--on-primary);}
+  .map-sel-bar button.primary:disabled{opacity:.45;}
+  .map-sel-bar button.plain{background:var(--line); color:var(--body);}
+
+  /* ═══ 마인드맵 모아보기 ═══ */
+  .compare-scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 14px calc(20px + var(--sab));}
+  .compare-panel{background:var(--panel); border-radius:14px; box-shadow:var(--shadow); margin-bottom:14px; overflow:hidden;}
+  .cp-head{display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line);}
+  .cp-icon{width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; flex:0 0 32px;}
+  .cp-icon.trip{background:var(--primary-soft);}
+  .cp-icon.idea{background:#d5f5e3;}
+  :root[data-theme="dark"] .cp-icon.idea{background:rgba(104,211,145,.15);}
+  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .cp-icon.idea{background:rgba(104,211,145,.15);} }
+  .cp-title{flex:1; font-size:14px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cp-edit{flex:0 0 auto; background:var(--field); color:var(--primary); font-size:12px; font-weight:600; padding:7px 12px; border-radius:9px;}
+  .cp-svgwrap{
+    height:260px; background-image:radial-gradient(circle, var(--dot) 1.2px, transparent 1.2px); background-size:24px 24px;
+  }
+  .cp-svg{width:100%; height:100%; display:block;}
+  .compare-empty{text-align:center; color:var(--sub); padding:48px 20px; font-size:13.5px;}
 
   /* ═══ 설정 뷰 ═══ */
   .settings-section{
@@ -481,6 +516,7 @@
       <div class="list-header">
         <div class="list-title">내 마인드맵</div>
         <div class="list-actions">
+          <button class="sm-btn" id="btnMapSelect" onclick="toggleMapSelectMode()">선택</button>
           <button class="sm-btn" onclick="addTopic(null)">＋ 주제</button>
           <button class="sm-btn primary" onclick="openNewMapSheet()">＋ 새 마인드맵</button>
         </div>
@@ -567,10 +603,24 @@
       </div>
     </div>
   </div>
+  <div class="map-sel-bar" id="mapSelBar">
+    <span class="msb-count" id="msbCount"></span>
+    <button class="plain" onclick="toggleMapSelectMode()">취소</button>
+    <button class="primary" id="btnCompareGo" onclick="openCompareView()">모아보기</button>
+  </div>
   <nav class="bottom-nav">
     <button class="nav-item active" data-view="viewMaps"><span class="ni">🗺️</span>마인드맵</button>
     <button class="nav-item" data-view="viewSettings"><span class="ni">⚙️</span>설정</button>
   </nav>
+</div>
+
+<!-- ═══════════ 마인드맵 모아보기 ═══════════ -->
+<div class="screen" id="scrCompare">
+  <div class="top-bar">
+    <button class="nav-btn" onclick="closeCompare()">‹</button>
+    <div class="tb-title" id="compareTitle">모아보기</div>
+  </div>
+  <div class="compare-scroll" id="compareBody"></div>
 </div>
 
 <!-- ═══════════ 맵 캔버스 ═══════════ -->
@@ -867,6 +917,8 @@ let linkFrom = null;      // 연결 모드: 시작 노드 id
 let parentFrom = null;    // 부모 연결 모드: 자식이 될 노드 id
 let groupJoinFrom = null; // 그룹에 넣기 모드: 대상 노드 id
 let groupEditFor = null;  // 그룹 멤버 편집 모드: 그룹 소유 노드 id
+let mapSelectMode = false;      // 홈 화면: 마인드맵 복수 선택 모드
+let selectedMapIds = new Set(); // 홈 화면: 선택된 마인드맵 id들
 
 function normalize(s){
   if(!Array.isArray(s.topics)) s.topics = [];
@@ -1108,11 +1160,13 @@ function mapCard(m, showPath, draggable){
     ? `${m.plan && m.plan.dest ? esc(m.plan.dest) + ' · ' : ''}${rng.start ? fmtShort(rng.start) + ' ~ ' + fmtShort(rng.end) + ' · ' : ''}${fmtWon(planTotal(m))}`
     : `노드 ${cnt}개`;
   const path = showPath && m.topicId ? `${esc(topicPath(m.topicId))} · ` : '';
-  return `<div class="map-card" data-mapid="${m.id}">
-    ${draggable === false ? '' : `<span class="mc-drag" title="드래그해서 순서 변경">${ic('grip',18,2)}</span>`}
+  const picked = selectedMapIds.has(m.id);
+  return `<div class="map-card ${mapSelectMode ? 'selecting' : ''} ${picked ? 'picked' : ''}" data-mapid="${m.id}">
+    ${mapSelectMode ? `<span class="mc-check">✓</span>`
+      : (draggable === false ? '' : `<span class="mc-drag" title="드래그해서 순서 변경">${ic('grip',18,2)}</span>`)}
     <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
     <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${path}${sub}</div></div>
-    <button class="mc-btn" data-act="settings">⋯</button>
+    ${mapSelectMode ? '' : '<button class="mc-btn" data-act="settings">⋯</button>'}
   </div>`;
 }
 function renderHome(){
@@ -1163,6 +1217,7 @@ function renderHome(){
   }
   if(!storageOK) html += `<div class="home-empty" style="padding:14px;color:var(--red)">이 브라우저에서는 자동 저장이 안 됩니다. 설정에서 백업을 활용하세요.</div>`;
   box.innerHTML = html;
+  renderMapSelBar();
 
   box.querySelectorAll('.topic-row[data-topic]').forEach(el => {
     const id = el.dataset.topic;
@@ -1182,8 +1237,9 @@ function renderHome(){
   });
   box.querySelectorAll('.map-card').forEach(el => {
     el.addEventListener('click', e => {
-      if(e.target.closest('.mc-drag')) return;
       const id = el.dataset.mapid;
+      if(mapSelectMode){ toggleMapPicked(id); return; }
+      if(e.target.closest('.mc-drag')) return;
       if(e.target.closest('[data-act="settings"]')){
         e.stopPropagation(); openMapSettings(id); return;
       }
@@ -1192,6 +1248,135 @@ function renderHome(){
     const handle = el.querySelector('.mc-drag');
     if(handle) handle.addEventListener('pointerdown', e => startMapDrag(handle, el, e));
   });
+}
+
+/* ════════════════ 홈: 마인드맵 복수 선택 · 모아보기 ════════════════ */
+function toggleMapSelectMode(){
+  mapSelectMode = !mapSelectMode;
+  if(!mapSelectMode) selectedMapIds.clear();
+  document.getElementById('btnMapSelect').classList.toggle('on', mapSelectMode);
+  document.getElementById('btnMapSelect').textContent = mapSelectMode ? '선택 취소' : '선택';
+  renderHome();
+}
+function toggleMapPicked(id){
+  if(selectedMapIds.has(id)) selectedMapIds.delete(id); else selectedMapIds.add(id);
+  renderHome();
+}
+function renderMapSelBar(){
+  const bar = document.getElementById('mapSelBar');
+  if(!mapSelectMode || !state.maps.length){ bar.classList.remove('show'); return; }
+  document.getElementById('msbCount').textContent = selectedMapIds.size ? `${selectedMapIds.size}개 선택됨` : '마인드맵을 선택하세요';
+  document.getElementById('btnCompareGo').disabled = selectedMapIds.size < 1;
+  bar.classList.add('show');
+}
+function openCompareView(){
+  const maps = state.maps.filter(m => selectedMapIds.has(m.id));
+  if(!maps.length) return;
+  document.getElementById('compareTitle').textContent = `모아보기 (${maps.length}개)`;
+  const body = document.getElementById('compareBody');
+  body.innerHTML = maps.map(m => `
+    <div class="compare-panel">
+      <div class="cp-head">
+        <div class="cp-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
+        <div class="cp-title">${esc(m.name)}</div>
+        <button class="cp-edit" data-openmap="${m.id}">편집하기</button>
+      </div>
+      <div class="cp-svgwrap"><svg class="cp-svg" data-mapid="${m.id}"></svg></div>
+    </div>`).join('');
+  body.querySelectorAll('.cp-edit').forEach(b => b.addEventListener('click', () => openMap(b.dataset.openmap)));
+  body.querySelectorAll('.cp-svg').forEach(svgEl => {
+    const m = maps.find(x => x.id === svgEl.dataset.mapid);
+    if(m) renderMiniMap(m, svgEl);
+  });
+  show('scrCompare');
+}
+function closeCompare(){ show('scrHome'); }
+/* 편집 화면과 독립된 정적 미리보기: world 캔버스를 건드리지 않고 각 맵을 자체 SVG에 auto-fit으로 그림 */
+function renderMiniMap(map, svgEl){
+  svgEl.innerHTML = '';
+  const ns = Object.values(map.nodes);
+  if(!ns.length) return;
+  const C = themeC();
+  const g = document.createElementNS(SVGNS,'g');
+  svgEl.appendChild(g);
+  const grouped = ns.filter(n => n.group).sort((a,b) => nodeDepth(map,a) - nodeDepth(map,b));
+  grouped.forEach(n => {
+    const b = groupBox(map, n.id);
+    const pad = 16, padTop = 30;
+    const rect = document.createElementNS(SVGNS,'rect');
+    rect.setAttribute('x', b.minX - pad); rect.setAttribute('y', b.minY - padTop);
+    rect.setAttribute('width', b.maxX - b.minX + pad*2); rect.setAttribute('height', b.maxY - b.minY + padTop + pad);
+    rect.setAttribute('rx', 14);
+    rect.setAttribute('fill', n.color); rect.setAttribute('fill-opacity', .13);
+    rect.setAttribute('stroke', strokeTone(n.color)); rect.setAttribute('stroke-width', 1.2);
+    rect.setAttribute('stroke-dasharray','6 4');
+    g.appendChild(rect);
+  });
+  ns.forEach(n => {
+    if(!n.parentId || !map.nodes[n.parentId]) return;
+    const p = map.nodes[n.parentId];
+    const path = document.createElementNS(SVGNS,'path');
+    const mx = (p.x + n.x)/2;
+    path.setAttribute('d', `M ${p.x} ${p.y} C ${mx} ${p.y}, ${mx} ${n.y}, ${n.x} ${n.y}`);
+    path.setAttribute('fill','none'); path.setAttribute('stroke', C.line); path.setAttribute('stroke-width', 1.6);
+    g.appendChild(path);
+  });
+  (map.links || []).forEach(l => {
+    const a = map.nodes[l.from], b = map.nodes[l.to]; if(!a || !b) return;
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    const dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy) || 1;
+    const off = Math.min(36, len*0.18);
+    const qx = mx - dy/len*off, qy = my + dx/len*off;
+    const path = document.createElementNS(SVGNS,'path');
+    path.setAttribute('d', `M ${a.x} ${a.y} Q ${qx} ${qy}, ${b.x} ${b.y}`);
+    path.setAttribute('fill','none'); path.setAttribute('stroke', C.primary); path.setAttribute('stroke-width', 1.4);
+    path.setAttribute('stroke-dasharray','5 4'); path.setAttribute('opacity', .6);
+    g.appendChild(path);
+  });
+  ns.forEach(n => {
+    const isRoot = n.type === 'root';
+    const {w,h} = nodeSize(map, n);
+    const ng = document.createElementNS(SVGNS,'g');
+    ng.setAttribute('transform', `translate(${n.x},${n.y})`);
+    if(n.hl){
+      const hc = hlColor(n);
+      const halo = document.createElementNS(SVGNS,'rect');
+      halo.setAttribute('x',-w/2-3); halo.setAttribute('y',-h/2-3);
+      halo.setAttribute('width',w+6); halo.setAttribute('height',h+6);
+      halo.setAttribute('rx',(isRoot?12:9)+3);
+      halo.setAttribute('fill', hc); halo.setAttribute('fill-opacity', .2);
+      halo.setAttribute('stroke', hc); halo.setAttribute('stroke-width', 1.6);
+      ng.appendChild(halo);
+    }
+    const rect = document.createElementNS(SVGNS,'rect');
+    rect.setAttribute('x',-w/2); rect.setAttribute('y',-h/2);
+    rect.setAttribute('width',w); rect.setAttribute('height',h);
+    rect.setAttribute('rx', isRoot ? 12 : 9);
+    rect.setAttribute('fill', isRoot ? n.color : C.panel);
+    rect.setAttribute('stroke', isRoot ? 'none' : C.line);
+    rect.setAttribute('stroke-width', isRoot ? 0 : 1.2);
+    ng.appendChild(rect);
+    const text = document.createElementNS(SVGNS,'text');
+    text.setAttribute('font-size', isRoot ? 13.5 : 12);
+    text.setAttribute('font-weight', isRoot ? 700 : 600);
+    text.setAttribute('dominant-baseline','central');
+    if(isRoot){ text.setAttribute('text-anchor','middle'); text.setAttribute('fill', tone(n.color)); }
+    else{ text.setAttribute('text-anchor','start'); text.setAttribute('x', -w/2+12); text.setAttribute('fill', C.body); }
+    let label = nodeLabel(map, n);
+    if(label.length > 26) label = label.slice(0,25) + '…';
+    text.textContent = label;
+    ng.appendChild(text);
+    g.appendChild(ng);
+  });
+  let minX=1/0, maxX=-1/0, minY=1/0, maxY=-1/0;
+  ns.forEach(n => {
+    const {w,h} = nodeSize(map, n);
+    minX = Math.min(minX, n.x-w/2); maxX = Math.max(maxX, n.x+w/2);
+    minY = Math.min(minY, n.y-h/2); maxY = Math.max(maxY, n.y+h/2);
+  });
+  const pad = 26;
+  svgEl.setAttribute('viewBox', `${minX-pad} ${minY-pad} ${maxX-minX+pad*2} ${maxY-minY+pad*2}`);
+  svgEl.setAttribute('preserveAspectRatio','xMidYMid meet');
 }
 
 /* ════════════════ 홈: 마인드맵 카드 드래그 정렬 ════════════════ */
