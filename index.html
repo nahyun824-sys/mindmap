@@ -395,9 +395,13 @@
     display:none; background:var(--red-soft); color:var(--red);
     position:absolute; top:0; left:0; right:0; z-index:60;
     padding:calc(8px + var(--sat)) 16px 8px; align-items:center; justify-content:center;
-    font-size:12.5px; font-weight:600; text-align:center; line-height:1.5;
+    font-size:12.5px; font-weight:600; text-align:center; line-height:1.5; gap:8px; flex-wrap:wrap;
   }
   .conn-banner.on{display:flex;}
+  .conn-banner button{
+    background:rgba(0,0,0,.14); border:none; border-radius:6px; padding:3px 10px;
+    font-size:12px; font-weight:700; color:inherit; flex:0 0 auto; cursor:pointer;
+  }
   .back-btn{background:rgba(255,255,255,.22); border-radius:8px; padding:5px 12px; font-size:12px; color:#fff; flex:0 0 auto;}
   .header-right{display:flex; align-items:center; gap:10px;}
   .user-avatar{
@@ -453,6 +457,9 @@
       Google로 로그인
     </button>
     <div class="login-note">투두 캘린더와 같은 계정을 쓰면 돼요</div>
+    <button class="login-note" id="loginOfflineBtn" style="display:none; background:none; border:none; text-decoration:underline; margin-top:10px; cursor:pointer" onclick="continueOffline()">
+      연결이 오래 걸려요 · 이 기기에 저장된 데이터로 계속하기
+    </button>
   </div>
 </div>
 
@@ -493,6 +500,13 @@
           마인드맵 전용 Firebase 프로젝트를 연결해야 합니다.<br>
           저장소의 <b>FIREBASE_SETUP.md</b> 순서대로 설정한 뒤 index.html의 firebaseConfig에 값을 붙여넣으세요.
         </div>
+      </div>
+      <div class="settings-section" id="secLoginPrompt" style="display:none">
+        <div class="sec-title">☁️ 로그인이 필요해요</div>
+        <div class="set-note">지금은 이 기기에만 저장 중이에요. 로그인하면 기기 간 동기화·공유를 쓸 수 있어요.</div>
+        <button class="set-item" onclick="document.getElementById('googleLoginBtn').click()">
+          <span class="si-icon">🔑</span><span>Google로 로그인</span>
+        </button>
       </div>
       <div class="settings-section" id="secAccount" style="display:none">
         <div class="sec-title">👤 계정</div>
@@ -1062,6 +1076,8 @@ function show(scr){
   document.getElementById(scr).classList.add('active');
 }
 function goHome(){ curMapId = null; sel = null; linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null; closeSheets(); renderHome(); show('scrHome'); }
+/* 로그인 상태 확인이 오래 걸릴 때, 이 기기에 저장된 로컬 데이터로 우선 진입 (로그인 상태는 뒤에서 계속 확인) */
+function continueOffline(){ authBypassed = true; goHome(); }
 function showHint(msg, ms = 4000){
   const h = document.getElementById('mmHint');
   h.textContent = msg;
@@ -2720,9 +2736,9 @@ const firebaseConfig = {
 const cloud = {
   on:false, me:null, viewingUid:null, viewingName:'',
   unsubs:[], pushT:null, lastPushed:{}, lastTopics:'',
-  sharedWith:[], sharedMaps:[], logEntries:[], reconnAttempts:0
+  sharedWith:[], sharedMaps:[], logEntries:[], reconnAttempts:0, lastSnapAt:0
 };
-let fbAuth = null, fbDb = null, reconnT = null;
+let fbAuth = null, fbDb = null, reconnT = null, authBypassed = false;
 const configReady = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 try{
   if(window.firebase && configReady){
@@ -2741,20 +2757,48 @@ try{
 function setConnBanner(mode){
   const el = document.getElementById('connBanner');
   if(!el) return;
-  if(mode === 'ok'){ el.classList.remove('on'); return; }
-  el.textContent = mode === 'offline' ? '📴 오프라인이에요 · 연결되면 자동으로 동기화돼요'
+  if(mode === 'ok'){ el.classList.remove('on'); el.innerHTML = ''; return; }
+  el.innerHTML = '';
+  el.appendChild(document.createTextNode(mode === 'offline' ? '📴 오프라인이에요 · 연결되면 자동으로 동기화돼요'
     : mode === 'perm' ? '🔒 접근 권한 문제로 동기화가 안 되고 있어요 · 다시 로그인해보세요'
-    : '🔌 연결이 끊겼어요 · 재연결 시도 중…';
+    : '🔌 연결이 끊겼어요 · 재연결 시도 중…'));
+  if(mode !== 'perm'){
+    const btn = document.createElement('button');
+    btn.textContent = '지금 재시도';
+    btn.onclick = manualRetry;
+    el.appendChild(btn);
+  }
   el.classList.add('on');
+}
+function manualRetry(){
+  if(!(cloud.on && cloud.me)) return;
+  clearTimeout(reconnT); reconnT = null;
+  scheduleReconnect(true);
 }
 window.addEventListener('online', () => { setConnBanner('ok'); if(cloud.on && cloud.me) scheduleReconnect(true); });
 window.addEventListener('offline', () => setConnBanner('offline'));
 if(!navigator.onLine) setConnBanner('offline');   // 오프라인 상태로 페이지를 열었을 때도 즉시 표시
+/* 노트북 절전·탭 백그라운드 등으로 소켓이 조용히 죽는 경우 대비: 화면에 돌아왔는데 갱신이 한동안 없었다면 재연결 */
+function checkStaleOnWake(){
+  if(cloud.on && cloud.me && Date.now() - cloud.lastSnapAt > 20000){ clearTimeout(reconnT); reconnT = null; scheduleReconnect(true); }
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') checkStaleOnWake(); });
+window.addEventListener('pageshow', checkStaleOnWake);
+/* 리스너가 에러 콜백 없이 그냥 멎어버리는 경우 대비: 갱신이 오래 끊기면 강제로 재연결 */
+setInterval(() => {
+  if(cloud.on && cloud.me && navigator.onLine && document.visibilityState === 'visible' && !reconnT
+     && Date.now() - cloud.lastSnapAt > 45000) scheduleReconnect(true);
+}, 15000);
 function scheduleReconnect(immediate){
   if(reconnT) return;
   const n = cloud.reconnAttempts = immediate ? 0 : (cloud.reconnAttempts||0) + 1;
   const wait = immediate ? 0 : Math.min(30000, 1000 * Math.pow(2, Math.min(n, 5)));
-  reconnT = setTimeout(() => { reconnT = null; if(cloud.on && cloud.me) startCloudListeners(); }, wait);
+  reconnT = setTimeout(() => {
+    reconnT = null;
+    if(!(cloud.on && cloud.me)) return;
+    /* 리스너를 다시 붙이는 것만으론 죽은 소켓이 안 풀릴 수 있어 네트워크 자체를 완전히 끊었다 다시 붙임 */
+    fbDb.disableNetwork().catch(() => {}).then(() => fbDb.enableNetwork()).catch(() => {}).finally(startCloudListeners);
+  }, wait);
 }
 function isShared(){ return !!cloud.viewingUid; }
 const workUid = () => cloud.viewingUid || (cloud.me && cloud.me.uid);
@@ -2804,8 +2848,9 @@ if(cloud.on){
         scheduleReconnect();
       }
       startCloudListeners();
-      goHome();
+      if(!authBypassed) goHome();   // 이미 오프라인으로 진입한 상태면 화면을 강제로 옮기지 않고 뒤에서 동기화만 이어감
       setLoginLoading(false);
+      renderShareUI();
     }else{
       stopCloudListeners();
       setConnBanner('ok');
@@ -2814,9 +2859,14 @@ if(cloud.on){
       document.getElementById('userAvatar').classList.remove('on');
       renderShareUI();
       setLoginLoading(false);
-      show('scrLogin');
+      if(!authBypassed) show('scrLogin');
     }
   });
+  /* 로그인 상태 복원이 오래 걸리면(네트워크 문제 등) 로그인 화면에 갇히지 않도록 로컬 데이터로 계속하기 버튼을 보여줌 */
+  setTimeout(() => {
+    const b = document.getElementById('loginOfflineBtn');
+    if(b && document.getElementById('scrLogin').classList.contains('active')) b.style.display = 'block';
+  }, 4000);
   loginBtn.addEventListener('click', () => {
     if(loginBtn.disabled) return;
     setLoginLoading(true);
@@ -2994,6 +3044,7 @@ let pendingRemote = null;
 function startCloudListeners(){
   stopCloudListeners();
   const uid0 = workUid(); if(!uid0) return;
+  cloud.lastSnapAt = Date.now();
   const onListenErr = label => e => {
     console.warn(`Firestore 리스너 오류(${label}):`, e);
     if(e.code === 'permission-denied'){ setConnBanner('perm'); return; }  // 재시도해도 소용없는 오류
@@ -3001,7 +3052,7 @@ function startCloudListeners(){
     scheduleReconnect();
   };
   cloud.unsubs.push(mapsCol(uid0).onSnapshot(snap => {
-    cloud.reconnAttempts = 0; setConnBanner('ok');
+    cloud.reconnAttempts = 0; cloud.lastSnapAt = Date.now(); setConnBanner('ok');
     if(snap.metadata.fromCache) return;   // 오프라인 캐시로 로컬 데이터를 덮어쓰지 않음
     const maps = [];
     let topics = null;
@@ -3092,6 +3143,8 @@ function renderShareUI(){
   });
   const setup = document.getElementById('secCloudSetup');
   if(setup) setup.style.display = cloud.on ? 'none' : '';
+  const loginPrompt = document.getElementById('secLoginPrompt');
+  if(loginPrompt) loginPrompt.style.display = (cloud.on && !cloud.me) ? '' : 'none';
   if(!on) return;
   document.getElementById('myAccountRow').innerHTML = `
     <div class="su-av">${cloud.me.photoURL ? `<img src="${cloud.me.photoURL}">` : esc((cloud.me.displayName||'?')[0].toUpperCase())}</div>
