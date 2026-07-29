@@ -175,7 +175,7 @@
   .map-sel-bar button.plain{background:var(--line); color:var(--body);}
 
   /* ═══ 마인드맵 모아보기 ═══ */
-  .compare-scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 14px calc(20px + var(--sab));}
+  .compare-scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 14px calc(84px + var(--sab));}
   .compare-panel{background:var(--panel); border-radius:14px; box-shadow:var(--shadow); margin-bottom:14px; overflow:hidden;}
   .cp-head{display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line);}
   .cp-icon{width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; flex:0 0 32px;}
@@ -188,8 +188,11 @@
   .cp-svgwrap{
     height:260px; background-image:radial-gradient(circle, var(--dot) 1.2px, transparent 1.2px); background-size:24px 24px;
   }
-  .cp-svg{width:100%; height:100%; display:block;}
+  .cp-svg{width:100%; height:100%; display:block; touch-action:none; cursor:grab;}
+  .cp-svg:active{cursor:grabbing;}
+  .cp-fit{flex:0 0 auto; background:var(--field); color:var(--sub); font-size:12px; font-weight:600; padding:7px 10px; border-radius:9px;}
   .compare-empty{text-align:center; color:var(--sub); padding:48px 20px; font-size:13.5px;}
+  .merge-bar{bottom:calc(var(--sab) + 12px);}
 
   /* ═══ 설정 뷰 ═══ */
   .settings-section{
@@ -621,6 +624,10 @@
     <div class="tb-title" id="compareTitle">모아보기</div>
   </div>
   <div class="compare-scroll" id="compareBody"></div>
+  <div class="map-sel-bar merge-bar" id="mergeBar">
+    <span class="msb-count" id="mergeCount"></span>
+    <button class="primary" onclick="openMergeSheet()">🔗 합치기</button>
+  </div>
 </div>
 
 <!-- ═══════════ 맵 캔버스 ═══════════ -->
@@ -683,6 +690,20 @@
       <button type="button" class="danger-btn" onclick="deleteMapFromSheet()">삭제</button>
       <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
       <button type="submit" class="primary-btn">저장</button>
+    </div>
+  </form>
+</div>
+
+<!-- 마인드맵 합치기 -->
+<div class="sheet" id="mergeSheet">
+  <h3>마인드맵 합치기</h3>
+  <form onsubmit="return doMergeMaps(this)">
+    <div class="field"><label>합친 마인드맵 이름</label><input name="name" required></div>
+    <div class="field"><label>주제 위치</label><select name="topic" id="mergeTopic"></select></div>
+    <div class="set-note" style="margin-bottom:4px">선택한 마인드맵들이 새 마인드맵의 하위 가지로 합쳐져요. 원본 마인드맵은 그대로 남아있어요.</div>
+    <div class="sheet-btns">
+      <button type="button" class="plain-btn" onclick="closeSheets()">취소</button>
+      <button type="submit" class="primary-btn">합치기</button>
     </div>
   </form>
 </div>
@@ -919,6 +940,7 @@ let groupJoinFrom = null; // 그룹에 넣기 모드: 대상 노드 id
 let groupEditFor = null;  // 그룹 멤버 편집 모드: 그룹 소유 노드 id
 let mapSelectMode = false;      // 홈 화면: 마인드맵 복수 선택 모드
 let selectedMapIds = new Set(); // 홈 화면: 선택된 마인드맵 id들
+let compareMaps = [];           // 모아보기 화면에 현재 표시 중인 맵들
 
 function normalize(s){
   if(!Array.isArray(s.topics)) s.topics = [];
@@ -1272,6 +1294,7 @@ function renderMapSelBar(){
 function openCompareView(){
   const maps = state.maps.filter(m => selectedMapIds.has(m.id));
   if(!maps.length) return;
+  compareMaps = maps;
   document.getElementById('compareTitle').textContent = `모아보기 (${maps.length}개)`;
   const body = document.getElementById('compareBody');
   body.innerHTML = maps.map(m => `
@@ -1279,18 +1302,105 @@ function openCompareView(){
       <div class="cp-head">
         <div class="cp-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
         <div class="cp-title">${esc(m.name)}</div>
+        <button class="cp-fit" data-fitmap="${m.id}" title="화면 맞춤">⤢</button>
         <button class="cp-edit" data-openmap="${m.id}">편집하기</button>
       </div>
       <div class="cp-svgwrap"><svg class="cp-svg" data-mapid="${m.id}"></svg></div>
     </div>`).join('');
   body.querySelectorAll('.cp-edit').forEach(b => b.addEventListener('click', () => openMap(b.dataset.openmap)));
+  body.querySelectorAll('.cp-fit').forEach(b => b.addEventListener('click', () => {
+    const m = maps.find(x => x.id === b.dataset.fitmap);
+    const svgEl = body.querySelector(`.cp-svg[data-mapid="${b.dataset.fitmap}"]`);
+    if(m && svgEl) renderMiniMap(m, svgEl);
+  }));
   body.querySelectorAll('.cp-svg').forEach(svgEl => {
     const m = maps.find(x => x.id === svgEl.dataset.mapid);
     if(m) renderMiniMap(m, svgEl);
+    attachPreviewNav(svgEl);
   });
+  const bar = document.getElementById('mergeBar');
+  bar.classList.toggle('show', maps.length >= 2);
+  document.getElementById('mergeCount').textContent = `${maps.length}개 마인드맵`;
   show('scrCompare');
 }
 function closeCompare(){ show('scrHome'); }
+/* 모아보기 미리보기: 편집 모드 없이 바로 확대/축소·이동 (편집 캔버스의 world/cam과는 완전히 독립) */
+function attachPreviewNav(svgEl){
+  const parseVB = () => { const p = svgEl.getAttribute('viewBox').split(' ').map(Number); return {x:p[0], y:p[1], w:p[2], h:p[3]}; };
+  const setVB = vb => svgEl.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  const vb0 = parseVB();
+  if(!vb0.w || !vb0.h) return;
+  const minW = vb0.w / 6, maxW = vb0.w * 4;
+  function clientToUser(cx, cy){
+    const ctm = svgEl.getScreenCTM(); if(!ctm) return {x:0,y:0};
+    const p = svgEl.createSVGPoint(); p.x = cx; p.y = cy;
+    return p.matrixTransform(ctm.inverse());
+  }
+  function clientVec(dx, dy){
+    const ctm = svgEl.getScreenCTM(); if(!ctm) return {x:0,y:0};
+    const inv = ctm.inverse();
+    const p1 = svgEl.createSVGPoint(), p2 = svgEl.createSVGPoint();
+    p1.x = 0; p1.y = 0; p2.x = dx; p2.y = dy;
+    const u1 = p1.matrixTransform(inv), u2 = p2.matrixTransform(inv);
+    return {x: u2.x-u1.x, y: u2.y-u1.y};
+  }
+  function zoomAt(factor, cx, cy){
+    const vb = parseVB();
+    const u = clientToUser(cx, cy);
+    const fx = (u.x - vb.x)/vb.w, fy = (u.y - vb.y)/vb.h;
+    const newW = Math.min(maxW, Math.max(minW, vb.w/factor));
+    const ratio = newW/vb.w;
+    const newH = vb.h*ratio;
+    setVB({x: u.x - fx*newW, y: u.y - fy*newH, w:newW, h:newH});
+  }
+  const pts = new Map();
+  let panLast = null, pinchLast = null;
+  svgEl.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomAt(e.deltaY < 0 ? 1.12 : 1/1.12, e.clientX, e.clientY);
+  }, {passive:false});
+  svgEl.addEventListener('pointerdown', e => {
+    svgEl.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(pts.size === 2){
+      const [a,b] = [...pts.values()];
+      pinchLast = {d:Math.hypot(a.x-b.x, a.y-b.y), mx:(a.x+b.x)/2, my:(a.y+b.y)/2};
+      panLast = null;
+    }else{
+      panLast = {x:e.clientX, y:e.clientY};
+    }
+  });
+  svgEl.addEventListener('pointermove', e => {
+    if(!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(pts.size === 2){
+      const [a,b] = [...pts.values()];
+      const d = Math.hypot(a.x-b.x, a.y-b.y);
+      const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+      if(pinchLast){
+        const dv = clientVec(mx-pinchLast.mx, my-pinchLast.my);
+        const vb = parseVB();
+        setVB({x:vb.x-dv.x, y:vb.y-dv.y, w:vb.w, h:vb.h});
+        zoomAt(d/(pinchLast.d||1), mx, my);
+      }
+      pinchLast = {d, mx, my};
+      return;
+    }
+    if(!panLast) return;
+    const dv = clientVec(e.clientX-panLast.x, e.clientY-panLast.y);
+    const vb = parseVB();
+    setVB({x:vb.x-dv.x, y:vb.y-dv.y, w:vb.w, h:vb.h});
+    panLast = {x:e.clientX, y:e.clientY};
+  });
+  function endPointer(e){
+    pts.delete(e.pointerId);
+    if(pts.size < 2) pinchLast = null;
+    if(pts.size === 1){ const [p] = [...pts.values()]; panLast = p; }
+    else if(pts.size === 0) panLast = null;
+  }
+  svgEl.addEventListener('pointerup', endPointer);
+  svgEl.addEventListener('pointercancel', endPointer);
+}
 /* 편집 화면과 독립된 정적 미리보기: world 캔버스를 건드리지 않고 각 맵을 자체 SVG에 auto-fit으로 그림 */
 function renderMiniMap(map, svgEl){
   svgEl.innerHTML = '';
@@ -1493,6 +1603,68 @@ function deleteMapFromSheet(){
   if(!confirm(`"${m.name}"을(를) 삭제할까요?`)) return;
   state.maps = state.maps.filter(x => x.id !== settingsMapId);
   save(); closeSheets(); renderHome();
+}
+
+/* ════════════════ 모아보기: 마인드맵 합치기 ════════════════ */
+function openMergeSheet(){
+  if(compareMaps.length < 2) return;
+  const sheet = document.getElementById('mergeSheet');
+  sheet.querySelector('input[name=name]').value = compareMaps.map(m => m.name).join(' + ').slice(0, 60);
+  document.getElementById('mergeTopic').innerHTML = topicOptions(compareMaps[0].topicId || null);
+  openSheet('mergeSheet');
+}
+function doMergeMaps(form){
+  if(compareMaps.length < 2) return false;
+  const f = new FormData(form);
+  const name = String(f.get('name')).trim() || '합친 마인드맵';
+  const topicId = f.get('topic') || null;
+  const merged = mergeMaps(compareMaps, name, topicId);
+  state.maps.push(merged);
+  const t = topicById(merged.topicId);
+  if(t) t.open = true;
+  save(); form.reset(); closeSheets();
+  openMap(merged.id);
+  return false;
+}
+/* 선택된 맵들의 트리를 새 루트 아래 나란히 이어붙임 (id 재발급으로 충돌 방지, 원본은 그대로 둠) */
+function mergeMaps(maps, name, topicId){
+  const rid = uid();
+  const nodes = {[rid]: {id:rid, parentId:null, type:'root', text:name, color:PALETTE[0], x:0, y:0, meta:{}}};
+  const links = [];
+  const GAP = 140;
+  let offsetX = 0;
+  maps.forEach(src => {
+    const idMap = {};
+    const ns = Object.values(src.nodes);
+    ns.forEach(n => { idMap[n.id] = uid(); });
+    let minX = 1/0, maxX = -1/0;
+    ns.forEach(n => {
+      const {w} = nodeSize(src, n);
+      minX = Math.min(minX, n.x - w/2);
+      maxX = Math.max(maxX, n.x + w/2);
+    });
+    const shiftX = offsetX - minX;
+    ns.forEach(n => {
+      const nid = idMap[n.id];
+      const isSrcRoot = n.id === src.rootId;
+      const clone = {...n, id:nid, x:n.x+shiftX};
+      clone.parentId = isSrcRoot ? rid : (idMap[n.parentId] || rid);
+      clone.type = isSrcRoot ? 'idea' : n.type;
+      if(n.groupId) clone.groupId = idMap[n.groupId] || null;
+      if(n.group) clone.group = {...n.group};
+      nodes[nid] = clone;
+    });
+    (src.links || []).forEach(l => {
+      if(idMap[l.from] && idMap[l.to]) links.push({...l, id:uid(), from:idMap[l.from], to:idMap[l.to]});
+    });
+    offsetX = maxX + shiftX + GAP;
+  });
+  return {
+    id: uid(), kind:'idea', name, topicId,
+    cam:{x:0,y:0,z:1}, rootId:rid, links,
+    ord: mapsIn(topicId).reduce((mx,x) => Math.max(mx, x.ord||0), -1) + 1,
+    nodes
+  };
 }
 
 /* ════════════════ 여행계획 변환 / 되돌리기 ════════════════ */
