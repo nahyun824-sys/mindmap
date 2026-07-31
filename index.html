@@ -742,6 +742,8 @@
   <form onsubmit="return saveMapSettings(this)">
     <div class="field"><label>이름</label><input name="name" required></div>
     <div class="field"><label>주제</label><select name="topic" id="mapSetTopic"></select></div>
+    <div class="field"><label>금액 통화</label><select name="currency" id="mapSetCurrency"></select></div>
+    <div class="set-note" style="margin:-4px 0 11px">이 마인드맵의 금액·경비를 표시할 통화예요. 이미 입력한 숫자는 그대로 두고 단위만 바뀝니다.</div>
     <div class="sheet-btns">
       <button type="button" class="danger-btn" onclick="deleteMapFromSheet()">삭제</button>
       <button type="button" class="plain-btn" onclick="closeSheets()">닫기</button>
@@ -847,7 +849,7 @@
     </div>
     <div class="field-row">
       <div class="field"><label>분류</label><select name="cat" id="pitemCat"></select></div>
-      <div class="field"><label>비용 (원)</label><input name="cost" type="number" inputmode="numeric" min="0" step="100" placeholder="0"></div>
+      <div class="field"><label id="pitemCostLabel">비용</label><input name="cost" type="number" inputmode="decimal" min="0" step="100" placeholder="0"></div>
     </div>
     <div class="field"><label>메모</label><textarea name="memo" rows="2" placeholder="예약번호, 팁 등"></textarea></div>
     <div class="sheet-btns" id="pitemBtns"></div>
@@ -931,7 +933,32 @@ function fmtShort(ds){
   if(isNaN(d)) return ds;
   return `${d.getMonth()+1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
 }
-const fmtWon = n => Number(n||0).toLocaleString('ko-KR') + '원';
+/* ── 통화: 마인드맵별로 고를 수 있고 기본은 원 ──
+   여행마다 쓰는 돈이 달라서 앱 전체가 아니라 마인드맵마다 따로 둔다.
+   dec = 소수 자릿수, step = 입력칸의 증감 단위 */
+const CURRENCIES = {
+  KRW:{label:'원 (KRW)',   sym:'원', suffix:true,  dec:0, step:100},
+  USD:{label:'달러 (USD)', sym:'$',  suffix:false, dec:2, step:1},
+  EUR:{label:'유로 (EUR)', sym:'€',  suffix:false, dec:2, step:1},
+  JPY:{label:'엔 (JPY)',   sym:'¥',  suffix:false, dec:0, step:100},
+  VND:{label:'동 (VND)',   sym:'₫',  suffix:true,  dec:0, step:1000},
+  THB:{label:'바트 (THB)', sym:'฿',  suffix:false, dec:2, step:1},
+  PHP:{label:'페소 (PHP)', sym:'₱',  suffix:false, dec:2, step:1},
+};
+const curOf = map => (map && CURRENCIES[map.currency]) ? map.currency : 'KRW';
+const curInfo = map => CURRENCIES[curOf(map)];
+/* 숫자 표기는 통화와 무관하게 ko-KR로 통일한다. 통화별 현지 표기를 쓰면 같은 한국어 화면에서
+   구분자가 뒤섞여(예: 유로 €1.234,50) 오독하기 쉽다. 기호와 소수 자릿수만 통화에 맞춘다. */
+function fmtMoney(n, map){
+  const c = curInfo(map);
+  const v = Number(n||0).toLocaleString('ko-KR', {minimumFractionDigits:c.dec, maximumFractionDigits:c.dec});
+  return c.suffix ? v + c.sym : c.sym + v;
+}
+function currencyOptions(sel){
+  const s = CURRENCIES[sel] ? sel : 'KRW';
+  return Object.entries(CURRENCIES).map(([k,v]) =>
+    `<option value="${k}" ${k===s?'selected':''}>${v.label}</option>`).join('');
+}
 
 function shade(hex, f){
   if(!/^#[0-9a-f]{6}$/i.test(hex || '')) return hex || '#566573';
@@ -1088,8 +1115,13 @@ function applyTheme(){
   const t = state.theme || 'system';
   document.documentElement.setAttribute('data-theme', t);
   const dark = t === 'dark' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  /* 브라우저 주소창·상태바(헤더) 색을 지금 적용된 배경색과 똑같이 맞춘다.
+     값을 적어두면 CSS와 어긋날 수 있으므로 실제 --bg를 읽어서 쓴다. */
   const meta = document.getElementById('metaTheme');
-  if(meta) meta.setAttribute('content', dark ? '#14151a' : '#f0f2f5');
+  if(meta){
+    const bg = getComputedStyle(document.body).getPropertyValue('--bg').trim();
+    meta.setAttribute('content', bg || (dark ? '#14151a' : '#f0f2f5'));
+  }
   const seg = document.getElementById('themeSeg');
   if(seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   if(curMap()) renderMap();
@@ -1279,7 +1311,7 @@ function mapCard(m, showPath, draggable){
   const cnt = Object.keys(m.nodes).length - 1;
   const rng = planRange(m);
   const sub = m.kind === 'trip'
-    ? `${m.plan && m.plan.dest ? esc(m.plan.dest) + ' · ' : ''}${rng.start ? fmtShort(rng.start) + ' ~ ' + fmtShort(rng.end) + ' · ' : ''}${fmtWon(planTotal(m))}`
+    ? `${m.plan && m.plan.dest ? esc(m.plan.dest) + ' · ' : ''}${rng.start ? fmtShort(rng.start) + ' ~ ' + fmtShort(rng.end) + ' · ' : ''}${fmtMoney(planTotal(m), m)}`
     : `노드 ${cnt}개`;
   const path = showPath && m.topicId ? `${esc(topicPath(m.topicId))} · ` : '';
   const picked = selectedMapIds.has(m.id);
@@ -1683,6 +1715,7 @@ function openMapSettings(id){
   const sheet = document.getElementById('mapSetSheet');
   sheet.querySelector('input[name=name]').value = m.name;
   document.getElementById('mapSetTopic').innerHTML = topicOptions(m.topicId);
+  document.getElementById('mapSetCurrency').innerHTML = currencyOptions(curOf(m));
   openSheet('mapSetSheet');
 }
 function saveMapSettings(form){
@@ -1694,8 +1727,11 @@ function saveMapSettings(form){
     m.topicId = newTopic;
     m.ord = mapsIn(newTopic).reduce((mx,x) => Math.max(mx, x.ord||0), -1) + 1;
   }
+  const cur = String(f.get('currency') || '');
+  m.currency = CURRENCIES[cur] ? cur : 'KRW';
   if(m.nodes[m.rootId]) m.nodes[m.rootId].text = m.name;
   save(); closeSheets(); renderHome();
+  if(curMapId === m.id){ renderMap(); if(planActive()) renderPlan(); }
   return false;
 }
 function deleteMapFromSheet(){
@@ -2059,7 +2095,7 @@ function renderMap(){
       costText.setAttribute('font-size', 10);
       costText.setAttribute('font-weight', 700);
       costText.setAttribute('fill', C.sub);
-      costText.textContent = fmtWon(costTotal);
+      costText.textContent = fmtMoney(costTotal, map);
       g.appendChild(costText);
     }
     world.appendChild(g);
@@ -2074,11 +2110,11 @@ function renderBudgetPanel(map){
   const total = Object.values(sums).reduce((s,x) => s+x, 0);
   if(total <= 0){ badge.style.display = 'none'; detail.classList.remove('show'); return; }
   badge.style.display = 'flex';
-  document.getElementById('budgetTotalText').textContent = fmtWon(total);
+  document.getElementById('budgetTotalText').textContent = fmtMoney(total, map);
   const rows = Object.keys(COST_CATS).filter(k => sums[k] > 0)
-    .map(k => `<div class="budget-row"><span class="bcat">${COST_CATS[k].emoji} ${COST_CATS[k].label}</span><span>${fmtWon(sums[k])}</span></div>`)
+    .map(k => `<div class="budget-row"><span class="bcat">${COST_CATS[k].emoji} ${COST_CATS[k].label}</span><span>${fmtMoney(sums[k], map)}</span></div>`)
     .join('');
-  detail.innerHTML = rows + `<div class="budget-total"><span>합계</span><span>${fmtWon(total)}</span></div>`;
+  detail.innerHTML = rows + `<div class="budget-total"><span>합계</span><span>${fmtMoney(total, map)}</span></div>`;
 }
 function toggleBudgetDetail(){ document.getElementById('budgetDetail').classList.toggle('show'); }
 document.addEventListener('click', e => {
@@ -2841,7 +2877,7 @@ function openEdit(id){
     html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
   }
   html += `<div class="field-row">
-    <div class="field"><label>금액 (원, 선택사항)</label><input name="cost" type="number" inputmode="numeric" min="0" step="100" value="${n.cost ? n.cost : ''}" placeholder="0"></div>
+    <div class="field"><label>금액 (${curInfo(map).sym}, 선택사항)</label><input name="cost" type="number" inputmode="decimal" min="0" step="${curInfo(map).step}" value="${n.cost ? n.cost : ''}" placeholder="0"></div>
     <div class="field"><label>분류</label><select name="costcat">${costCatOptions(n.costCat)}</select></div>
   </div>
   <div class="set-note" style="margin:-4px 0 11px">금액을 입력하지 않으면 하위 노드 합계만 표시돼요. 분류를 고르지 않으면 기타로 들어가요.</div>`;
@@ -3028,7 +3064,7 @@ function renderPlan(){
   let html = `<div class="itin-head">
     <h3>🗓️ ${esc(map.name)}</h3>
     <div class="ih-meta">${p.dest ? esc(p.dest)+' · ' : ''}${rng.start ? fmtShort(rng.start)+' ~ '+fmtShort(rng.end)+' · ' : ''}${p.days.length}일</div>
-    <div class="itin-total"><span>총 예상 경비</span><span>${fmtWon(planTotal(map))}</span></div>
+    <div class="itin-total"><span>총 예상 경비</span><span>${fmtMoney(planTotal(map), map)}</span></div>
   </div>`;
   html += renderPlanCal(map);
   const renderItem = (it, depth) => {
@@ -3039,7 +3075,7 @@ function renderPlan(){
       <div class="ii-main">
         <div class="ii-title">${esc(it.text)}<span class="cat-badge"><i style="background:${c.fg}"></i>${c.label}</span></div>
         ${it.memo ? `<div class="ii-memo">${esc(it.memo)}</div>` : ''}
-        ${(it.cost || subSum) ? `<div class="ii-cost">💰 ${fmtWon(it.cost)}${subSum ? ` <span style="font-weight:400">(하위 포함 ${fmtWon(itemSum(it))})</span>` : ''}</div>` : ''}
+        ${(it.cost || subSum) ? `<div class="ii-cost">💰 ${fmtMoney(it.cost, map)}${subSum ? ` <span style="font-weight:400">(하위 포함 ${fmtMoney(itemSum(it), map)})</span>` : ''}</div>` : ''}
       </div>
       ${depth < 2 ? `<button class="ii-addsub" data-addsub="${it.id}" title="하위 일정 추가">＋</button>` : ''}
     </div>`;
@@ -3052,7 +3088,7 @@ function renderPlan(){
       <div class="itin-day-head" data-dayedit="${d.id}" style="cursor:pointer">
         <span style="color:${strokeTone(PALETTE[(i+1)%PALETTE.length])}">Day ${i+1}</span>
         <span style="font-weight:500;font-size:12.5px;color:var(--sub)">${fmtShort(d.date)}${d.note ? ' · '+esc(d.note) : ''}</span>
-        <span class="id-sum">${daySum ? fmtWon(daySum) : ''}</span>
+        <span class="id-sum">${daySum ? fmtMoney(daySum, map) : ''}</span>
       </div>
       ${d.items.length ? d.items.map(it => renderItem(it, 0)).join('') : '<div class="itin-empty">일정이 없어요 · 마인드맵에서 노드를 선택해 보낼 수도 있어요</div>'}
       <button class="itin-add" data-additem="${d.id}">＋ 일정 추가</button>
@@ -3230,7 +3266,12 @@ function openPlanItem(opts){
     `<option value="${k}" ${k===(it ? it.cat : 'sight')?'selected':''}>${v.emoji} ${v.label}</option>`).join('');
   form.querySelector('input[name=text]').value = it ? it.text : (o.prefill || '');
   form.querySelector('input[name=time]').value = it ? (it.time||'') : '';
-  form.querySelector('input[name=cost]').value = it && it.cost ? it.cost : '';
+  /* 비용 입력칸을 이 마인드맵의 통화에 맞춤 */
+  const ci = curInfo(map);
+  document.getElementById('pitemCostLabel').textContent = `비용 (${ci.sym})`;
+  const costInput = form.querySelector('input[name=cost]');
+  costInput.step = ci.step;
+  costInput.value = it && it.cost ? it.cost : '';
   form.querySelector('textarea[name=memo]').value = it ? (it.memo||'') : '';
   document.getElementById('pitemBtns').innerHTML = `
     ${it ? `<button type="button" class="danger-btn" onclick="deletePlanItem()">${ic('trash',17)}</button>` : ''}
