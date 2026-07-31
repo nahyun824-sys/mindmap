@@ -24,6 +24,8 @@
     --shadow-md:0 4px 20px rgba(0,0,0,.07);
     --shadow-lg:0 20px 60px rgba(0,0,0,.2);
     --nav:64px;
+    /* 넓은 화면에서 목록·플래너를 모아 보여줄 폭 (연결 배너도 같은 폭을 따라감) */
+    --page:1200px;
     --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
   }
   :root[data-theme="dark"]{
@@ -73,10 +75,24 @@
      모아보기(#scrCompare)는 넓은 화면이 그대로 도움이 되므로 제외. */
   @media (min-width:640px){
     #scrHome, #scrPlan{
-      max-width:480px; margin-left:auto; margin-right:auto;
+      max-width:var(--page); margin-left:auto; margin-right:auto;
       border-left:1px solid var(--line2); border-right:1px solid var(--line2);
     }
-    #connBanner{max-width:480px; margin-left:auto; margin-right:auto;}
+    #connBanner{max-width:var(--page); margin-left:auto; margin-right:auto;}
+  }
+  /* PC: 기본 스크롤바가 두껍고 회색이라 둥근 카드 UI와 겉돈다. 얇고 둥근 모양에 테마 색을 써서 맞춘다.
+     터치 기기는 스크롤바가 화면 위에 겹쳐 나타나고 저절로 사라지므로 건드리지 않는다.
+     (크롬·파이어폭스는 표준 scrollbar-* 속성을, 사파리는 ::-webkit- 쪽을 쓴다) */
+  @media (pointer: fine){
+    *{ scrollbar-width:thin; scrollbar-color:var(--line2) transparent; }
+    *::-webkit-scrollbar{ width:10px; height:10px; }
+    *::-webkit-scrollbar-track{ background:transparent; }
+    *::-webkit-scrollbar-thumb{
+      background:var(--line2); border-radius:999px;
+      border:3px solid transparent; background-clip:content-box;   /* 실제로 보이는 두께를 4px로 */
+    }
+    *::-webkit-scrollbar-thumb:hover{ background:var(--sub); background-clip:content-box; }
+    *::-webkit-scrollbar-corner{ background:transparent; }
   }
 
   /* ═══ 홈: 헤더 & 뷰 & 하단 네비 ═══ */
