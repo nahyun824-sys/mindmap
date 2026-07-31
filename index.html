@@ -3268,6 +3268,44 @@ function importData(input){
 
 /* ════════════════ 데스크톱 단축키 ════════════════ */
 const ARROW_DIR = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
+/* 누른 방향에 있는 가장 가까운 노드 찾기.
+   방향축으로 나아간 거리(along)가 양수인 노드만 후보로 두고, 축에서 벗어난 정도(side)에
+   가중치를 줘서 "그 방향으로 자연스럽게 다음"인 노드를 고른다.
+   45도 원뿔 안에 아무것도 없으면 같은 쪽에서 가장 가까운 노드로 대신 넘어간다. */
+function nodeInDirection(map, fromId, dx, dy){
+  const c = map.nodes[fromId]; if(!c) return null;
+  let best = null, bestScore = Infinity, alt = null, altDist = Infinity;
+  Object.values(map.nodes).forEach(n => {
+    if(n.id === fromId) return;
+    const vx = n.x - c.x, vy = n.y - c.y;
+    const along = vx*dx + vy*dy;
+    if(along <= 0) return;                       // 반대 방향이거나 나란한 위치는 제외
+    const side = Math.abs(vx*dy - vy*dx);
+    const dist = Math.hypot(vx, vy);
+    if(side <= along){                            // 45도 원뿔 안 = 그 방향으로 확실히 놓인 노드
+      const score = along + side*2;
+      if(score < bestScore){ bestScore = score; best = n; }
+    }
+    if(dist < altDist){ altDist = dist; alt = n; }
+  });
+  return best || alt;
+}
+/* 선택이 화면 밖으로 나가면 그 노드가 보이도록 카메라만 살짝 옮긴다.
+   보기 위한 이동이라 save()는 하지 않고, 다음 실제 편집 때 함께 저장된다. */
+function ensureNodeVisible(map, n){
+  if(!n) return;
+  const r = wrap.getBoundingClientRect();
+  const {w, h} = nodeSize(map, n);
+  const sx = r.width/2 + map.cam.x + n.x*map.cam.z;
+  const sy = r.height/2 + map.cam.y + n.y*map.cam.z;
+  const hw = (w/2)*map.cam.z + 28, hh = (h/2)*map.cam.z + 28;
+  let dx = 0, dy = 0;
+  if(sx - hw < 0) dx = -(sx - hw);
+  else if(sx + hw > r.width) dx = r.width - (sx + hw);
+  if(sy - hh < 0) dy = -(sy - hh);
+  else if(sy + hh > r.height) dy = r.height - (sy + hh);
+  if(dx || dy){ map.cam.x += dx; map.cam.y += dy; applyCam(); }
+}
 document.addEventListener('keydown', e => {
   if(!curMap() || !sel || planActive()) return;
   if(!document.getElementById('scrMap').classList.contains('active')) return;
@@ -3279,13 +3317,15 @@ document.addEventListener('keydown', e => {
   const map = curMap(), n = map.nodes[sel];
   if(!n) return;
   if(ARROW_DIR[e.key]){
-    /* 선택한 노드를 방향키로 옮김 (Shift와 함께 누르면 크게) */
+    /* 방향키: 그 방향에 있는 노드로 선택을 옮김 (노드 위치는 그대로) */
     e.preventDefault();
     const [dx, dy] = ARROW_DIR[e.key];
-    const step = e.shiftKey ? 40 : 10;
-    n.x += dx * step; n.y += dy * step;
-    if(dy) reorderAfterDrag(map, n.id);   // 위아래로 옮기면 형제 순서도 화면 순서에 맞춤
-    save(); renderMap();
+    const next = nodeInDirection(map, sel, dx, dy);
+    if(next){
+      sel = next.id;
+      renderMap(); renderSelBar();
+      ensureNodeVisible(map, next);
+    }
     return;
   }
   if(e.key === 'Tab'){ e.preventDefault(); addChild(sel); }
