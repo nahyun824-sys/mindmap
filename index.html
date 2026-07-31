@@ -249,6 +249,16 @@
     box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;
   }
   .zoom-ctl button:active{background:var(--field);}
+  /* 드래그 선택(마퀴) 상자 — 화면 좌표로 캔버스 위에 겹쳐 그림 */
+  .marquee-box{
+    position:absolute; display:none; z-index:6; pointer-events:none;
+    border:1.6px dashed var(--primary); border-radius:6px; background:var(--primary-soft); opacity:.85;
+  }
+  .nav-btn.on{background:var(--primary); color:var(--on-primary);}
+  .sel-bar .sb-count{
+    flex:0 0 auto; align-self:center; padding:0 8px 0 6px; font-size:12.5px; font-weight:700; color:var(--primary);
+    white-space:nowrap;
+  }
   .mm-hint{
     position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:5;
     font-size:11.5px; color:var(--sub); background:var(--panel);
@@ -663,6 +673,7 @@
   <div class="top-bar">
     <button class="nav-btn" id="btnBack" onclick="goHome()">‹</button>
     <div class="tb-title" id="tbTitle"></div>
+    <button class="nav-btn" id="btnMarquee" onclick="toggleMarqueeMode()" title="드래그로 여러 노드 선택"></button>
     <button class="nav-btn" id="btnAddFree" onclick="addFreeNode()" title="독립 노드 추가"></button>
     <button class="nav-btn" id="btnGroups" onclick="openGroupSheet()" title="그룹 관리"></button>
     <button class="nav-btn" id="btnLayout" onclick="autoLayout()" title="자동 정돈"></button>
@@ -678,6 +689,7 @@
       <button id="btnZoomFit" onclick="zoomFit()"></button>
       <button id="btnZoomOut" onclick="zoomBy(0.8)"></button>
     </div>
+    <div class="marquee-box" id="marqueeBox"></div>
     <div class="sel-bar" id="selBar"></div>
   </div>
 </div>
@@ -845,6 +857,8 @@ const I = {
   group:'<rect x="3.5" y="5" width="17" height="14" rx="3.5" stroke-dasharray="3.4 3"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/>',
   star:'<path d="m12 3.6 2.6 5.2 5.8.9-4.2 4.1 1 5.7-5.2-2.7-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z"/>',
   grip:'<circle cx="8" cy="6" r="1.4" fill="currentColor"/><circle cx="16" cy="6" r="1.4" fill="currentColor"/><circle cx="8" cy="12" r="1.4" fill="currentColor"/><circle cx="16" cy="12" r="1.4" fill="currentColor"/><circle cx="8" cy="18" r="1.4" fill="currentColor"/><circle cx="16" cy="18" r="1.4" fill="currentColor"/>',
+  marquee:'<rect x="3.5" y="3.5" width="17" height="17" rx="2.5" stroke-dasharray="3.5 3"/><circle cx="9" cy="9.5" r="1.5" fill="currentColor"/><circle cx="15" cy="14.5" r="1.5" fill="currentColor"/>',
+  move:'<path d="M12 3v18M3 12h18"/><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
 };
 const ic = (name, size=20, sw=1.8) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[name]||''}</svg>`;
@@ -987,6 +1001,17 @@ let linkFrom = null;      // 연결 모드: 시작 노드 id
 let parentFrom = null;    // 부모 연결 모드: 자식이 될 노드 id
 let groupJoinFrom = null; // 그룹에 넣기 모드: 대상 노드 id
 let groupEditFor = null;  // 그룹 멤버 편집 모드: 그룹 소유 노드 id
+/* 캔버스 복수 선택: 2개 이상일 때만 "복수 선택 모드"로 보고 sel(단일 선택)은 비워둔다.
+   selSet이 비어 있으면 기존 단일 선택 동작 그대로. */
+let selSet = new Set();
+let marqueeMode = false;  // 빈 곳 드래그를 화면 이동 대신 선택 상자로 쓰는 모드(터치 기기용)
+const multiSel = () => selSet.size >= 2;
+const isSelected = id => id === sel || selSet.has(id);
+function clearMultiSel(render){
+  if(!selSet.size) return;
+  selSet.clear();
+  if(render){ renderMap(); renderSelBar(); }
+}
 let mapSelectMode = false;      // 홈 화면: 마인드맵 복수 선택 모드
 let selectedMapIds = new Set(); // 홈 화면: 선택된 마인드맵 id들
 let compareMaps = [];           // 모아보기 화면에 현재 표시 중인 맵들
@@ -1198,7 +1223,13 @@ function show(scr){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(scr).classList.add('active');
 }
-function goHome(){ curMapId = null; sel = null; linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null; closeSheets(); renderHome(); show('scrHome'); }
+function goHome(){ curMapId = null; sel = null; selSet.clear(); resetMarqueeMode(); linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null; closeSheets(); renderHome(); show('scrHome'); }
+function resetMarqueeMode(){
+  marqueeMode = false;
+  const b = document.getElementById('btnMarquee');
+  if(b) b.classList.remove('on');
+  hideMarquee();
+}
 /* 로그인 상태 확인이 오래 걸릴 때, 이 기기에 저장된 로컬 데이터로 우선 진입 (로그인 상태는 뒤에서 계속 확인) */
 function continueOffline(){ authBypassed = true; goHome(); }
 function showHint(msg, ms = 4000){
@@ -1210,7 +1241,8 @@ function showHint(msg, ms = 4000){
 }
 function hideHint(){ clearTimeout(showHint._t); document.getElementById('mmHint').style.opacity = '0'; }
 function openMap(id){
-  curMapId = id; sel = null; linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null;
+  curMapId = id; sel = null; selSet.clear(); linkFrom = null; parentFrom = null; groupJoinFrom = null; groupEditFor = null;
+  resetMarqueeMode();
   document.getElementById('budgetDetail').classList.remove('show');
   show('scrMap');
   const map = curMap();
@@ -1963,16 +1995,17 @@ function renderMap(){
     rect.setAttribute('x',-w/2); rect.setAttribute('y',-h/2);
     rect.setAttribute('width',w); rect.setAttribute('height',h);
     rect.setAttribute('rx', isRoot ? 14 : 11);
+    const picked = isSelected(n.id);
     if(isRoot){
       rect.setAttribute('fill', n.color);
-      rect.setAttribute('stroke', n.id === sel ? strokeTone(n.color) : 'none');
-      rect.setAttribute('stroke-width', n.id === sel ? 2.5 : 0);
+      rect.setAttribute('stroke', picked ? strokeTone(n.color) : 'none');
+      rect.setAttribute('stroke-width', picked ? 2.5 : 0);
     }else{
       rect.setAttribute('fill', C.panel);
-      rect.setAttribute('stroke', n.id === sel ? strokeTone(n.color) : C.line);
-      rect.setAttribute('stroke-width', n.id === sel ? 2 : 1.5);
+      rect.setAttribute('stroke', picked ? strokeTone(n.color) : C.line);
+      rect.setAttribute('stroke-width', picked ? 2 : 1.5);
     }
-    if(n.id === sel) rect.setAttribute('filter','drop-shadow(0 4px 10px rgba(0,0,0,.22))');
+    if(picked) rect.setAttribute('filter','drop-shadow(0 4px 10px rgba(0,0,0,.22))');
     g.appendChild(rect);
 
     if(!isRoot){
@@ -2085,7 +2118,7 @@ svg.addEventListener('pointerdown', e => {
   const map = curMap(); if(!map) return;
   svg.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-  if(pointers.size === 2){ drag = null; pinch = null; return; }
+  if(pointers.size === 2){ drag = null; pinch = null; hideMarquee(); return; }
   const glabel = e.target.closest('[data-groupowner]');
   if(glabel){
     drag = {type:'glabel', ownerId: glabel.dataset.groupowner, sx:e.clientX, sy:e.clientY, moved:false, t:Date.now()};
@@ -2095,12 +2128,45 @@ svg.addEventListener('pointerdown', e => {
   if(g && map.nodes[g.dataset.id]){
     const n = map.nodes[g.dataset.id];
     const w = screenToWorld(e.clientX, e.clientY);
-    drag = {type:'node', id:n.id, dx:n.x-w.x, dy:n.y-w.y, moved:false, sx:e.clientX, sy:e.clientY, t:Date.now()};
+    /* 복수 선택된 노드를 잡으면 선택된 노드 전체를 함께 옮긴다 */
+    if(multiSel() && selSet.has(n.id)){
+      const ids = [...selSet].filter(id => map.nodes[id]);
+      drag = {type:'multi', ids, id:n.id, ox:w.x, oy:w.y,
+        from: ids.map(id => ({id, x:map.nodes[id].x, y:map.nodes[id].y})),
+        moved:false, sx:e.clientX, sy:e.clientY, t:Date.now()};
+    }else{
+      drag = {type:'node', id:n.id, dx:n.x-w.x, dy:n.y-w.y, moved:false, sx:e.clientX, sy:e.clientY, t:Date.now()};
+    }
   }else{
+    /* 빈 곳: 선택 모드이거나 Shift를 누른 채면 화면 이동 대신 선택 상자를 끈다 */
     const lg = e.target.closest('.mm-link');
-    drag = {type:'pan', linkId: lg ? lg.dataset.linkid : null, sx:e.clientX, sy:e.clientY, cx:map.cam.x, cy:map.cam.y, moved:false, t:Date.now()};
+    if(!lg && (marqueeMode || e.shiftKey)){
+      drag = {type:'marquee', sx:e.clientX, sy:e.clientY, add:e.shiftKey && !marqueeMode, moved:false, t:Date.now()};
+    }else{
+      drag = {type:'pan', linkId: lg ? lg.dataset.linkid : null, sx:e.clientX, sy:e.clientY, cx:map.cam.x, cy:map.cam.y, moved:false, t:Date.now()};
+    }
   }
 });
+/* 선택 상자를 화면 좌표로 캔버스 위에 표시 */
+function drawMarquee(x1, y1, x2, y2){
+  const r = wrap.getBoundingClientRect();
+  const box = document.getElementById('marqueeBox');
+  box.style.left = (Math.min(x1,x2) - r.left) + 'px';
+  box.style.top = (Math.min(y1,y2) - r.top) + 'px';
+  box.style.width = Math.abs(x2-x1) + 'px';
+  box.style.height = Math.abs(y2-y1) + 'px';
+  box.style.display = 'block';
+}
+function hideMarquee(){ document.getElementById('marqueeBox').style.display = 'none'; }
+/* 선택 상자에 조금이라도 걸치는 노드를 모두 선택 */
+function nodesInScreenRect(map, x1, y1, x2, y2){
+  const a = screenToWorld(Math.min(x1,x2), Math.min(y1,y2));
+  const b = screenToWorld(Math.max(x1,x2), Math.max(y1,y2));
+  return Object.values(map.nodes).filter(n => {
+    const {w, h} = nodeSize(map, n);
+    return n.x + w/2 >= a.x && n.x - w/2 <= b.x && n.y + h/2 >= a.y && n.y - h/2 <= b.y;
+  });
+}
 svg.addEventListener('pointermove', e => {
   if(!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
@@ -2109,12 +2175,25 @@ svg.addEventListener('pointermove', e => {
   if(!drag) return;
   const dx = e.clientX-drag.sx, dy = e.clientY-drag.sy;
   if(Math.hypot(dx,dy) > 7) drag.moved = true;
+  if(drag.type === 'marquee'){
+    if(drag.moved) drawMarquee(drag.sx, drag.sy, e.clientX, e.clientY);
+    return;
+  }
   if(!drag.moved) return;
   if(drag.type === 'glabel') return;
   if(drag.type === 'node'){
     const n = map.nodes[drag.id]; if(!n) return;
     const w = screenToWorld(e.clientX, e.clientY);
     n.x = Math.round(w.x+drag.dx); n.y = Math.round(w.y+drag.dy);
+    renderMap();
+  }else if(drag.type === 'multi'){
+    /* 잡은 지점의 이동량만큼 선택된 노드를 모두 같이 옮겨 상대 위치를 유지 */
+    const w = screenToWorld(e.clientX, e.clientY);
+    const ox = w.x - drag.ox, oy = w.y - drag.oy;
+    drag.from.forEach(f => {
+      const n = map.nodes[f.id]; if(!n) return;
+      n.x = Math.round(f.x + ox); n.y = Math.round(f.y + oy);
+    });
     renderMap();
   }else{
     map.cam.x = drag.cx+dx; map.cam.y = drag.cy+dy;
@@ -2144,7 +2223,13 @@ function endPointer(e){
   if(pointers.size < 2 && pinch){ pinch = null; save(); }
   if(!drag) return;
   const map = curMap();
-  if(map && !drag.moved && Date.now()-drag.t < 700){
+  if(drag.type === 'marquee'){
+    hideMarquee();
+    if(map){
+      if(drag.moved) applyMarqueeSelection(map, drag, e.clientX, e.clientY);
+      else finishSelection(new Set());          // 선택 모드에서 빈 곳 탭 = 선택 해제
+    }
+  }else if(map && !drag.moved && Date.now()-drag.t < 700){
     if(drag.type === 'glabel'){
       const oid = drag.ownerId;
       if(map.nodes[oid] && map.nodes[oid].group){
@@ -2176,9 +2261,14 @@ function endPointer(e){
         lastTap = {t:0, id:null};
         openEdit(id);
       }else{
-        sel = id; lastTap = {t:Date.now(), id};
+        sel = id; selSet.clear(); lastTap = {t:Date.now(), id};
         renderMap(); renderSelBar();
       }
+    }else if(drag.type === 'multi'){
+      /* 복수 선택 상태에서 선택된 노드를 탭하면 그 노드만 선택에서 빼서 범위를 다듬을 수 있게 함 */
+      const next = new Set(selSet);
+      next.delete(drag.id);
+      finishSelection(next);
     }else if(groupEditFor){
       groupEditFor = null; hideHint();
       showHint('그룹 편집을 마쳤어요', 1500);
@@ -2195,12 +2285,14 @@ function endPointer(e){
     }else if(drag.linkId){
       openLinkEdit(drag.linkId);
     }else{
-      sel = null; lastTap = {t:0, id:null};
+      sel = null; selSet.clear(); lastTap = {t:0, id:null};
       renderMap(); renderSelBar();
     }
   }
-  if(drag.moved){
+  if(drag.moved && drag.type !== 'marquee'){
     if(drag.type === 'node' && map) reorderAfterDrag(map, drag.id);
+    /* 함께 옮긴 노드들도 각자의 형제 순서를 새 세로 위치에 맞게 갱신 */
+    else if(drag.type === 'multi' && map) drag.ids.forEach(id => reorderAfterDrag(map, id));
     save();
   }
   drag = null;
@@ -2214,13 +2306,124 @@ svg.addEventListener('wheel', e => {
 }, {passive:false});
 window.addEventListener('resize', () => { if(curMap()) renderMap(); });
 
+/* ════════════════ 복수 선택 ════════════════ */
+/* 선택 결과를 상태에 반영. 1개면 기존 단일 선택으로, 2개 이상이면 복수 선택 모드로 */
+function finishSelection(next){
+  if(next.size === 0){ sel = null; selSet.clear(); }
+  else if(next.size === 1){ sel = [...next][0]; selSet.clear(); }
+  else { sel = null; selSet = next; }
+  renderMap(); renderSelBar();
+  if(next.size >= 2) showHint(`${next.size}개 선택됨 · 드래그하면 함께 이동해요`, 2600);
+}
+function applyMarqueeSelection(map, d, ex, ey){
+  const next = d.add ? new Set([...selSet, ...(sel ? [sel] : [])]) : new Set();
+  nodesInScreenRect(map, d.sx, d.sy, ex, ey).forEach(n => next.add(n.id));
+  finishSelection(next);
+}
+function toggleMarqueeMode(){
+  marqueeMode = !marqueeMode;
+  document.getElementById('btnMarquee').classList.toggle('on', marqueeMode);
+  if(marqueeMode){
+    showHint('빈 곳을 드래그해 여러 노드를 선택하세요 · 두 손가락으로는 그대로 화면 이동 (PC는 Shift+드래그)', 0);
+  }else{
+    hideMarquee(); hideHint();
+  }
+}
+/* 선택한 노드들을 하나의 그룹으로 묶기 */
+function groupSelectedNodes(){
+  const map = curMap(); if(!map || !multiSel()) return;
+  const ids = [...selSet].filter(id => map.nodes[id]);
+  if(ids.length < 2) return;
+  const label = prompt(`선택한 ${ids.length}개를 묶을 그룹 이름 (비워두면 이름 없이 묶여요)`, '');
+  if(label === null) return;
+  const picked = new Set(ids);
+  /* 그룹 영역은 소유 노드의 하위 트리까지 감싸므로, 선택하지 않은 노드를 가장 적게 끌어들이면서
+     선택된 노드를 가장 많이 품는 노드를 소유 노드로 고른다 */
+  const counts = id => {
+    let outside = 0, inside = 0;
+    const seen = new Set();
+    const walk = nid => {
+      if(seen.has(nid)) return;
+      seen.add(nid);
+      Object.values(map.nodes).forEach(x => {
+        if(x.parentId !== nid) return;
+        if(picked.has(x.id)) inside++; else outside++;
+        walk(x.id);
+      });
+    };
+    walk(id);
+    return {outside, inside};
+  };
+  const owner = ids.map(id => ({id, n:map.nodes[id], ...counts(id)}))
+    .sort((a,b) => a.outside - b.outside || b.inside - a.inside || a.n.y - b.n.y || a.n.x - b.n.x)[0];
+  const on = map.nodes[owner.id];
+  on.group = {label: label.trim() || ((on.group && on.group.label) || '')};
+  const inOwnerSubtree = id => {
+    let p = map.nodes[id], guard = 0;
+    while(p && guard++ < 60){ if(p.id === owner.id) return true; p = map.nodes[p.parentId]; }
+    return false;
+  };
+  ids.forEach(id => {
+    if(id === owner.id) return;
+    /* 소유 노드의 하위 트리는 자동 포함이라 groupId를 따로 주지 않음 */
+    if(inOwnerSubtree(id)){ if(map.nodes[id].groupId === owner.id) delete map.nodes[id].groupId; return; }
+    map.nodes[id].groupId = owner.id;
+  });
+  sel = owner.id; selSet.clear();
+  save(); renderMap(); renderSelBar();
+  showHint(`${ids.length}개를 그룹으로 묶었어요`, 2200);
+}
+function highlightSelectedNodes(){
+  const map = curMap(); if(!map || !multiSel()) return;
+  const ns = [...selSet].map(id => map.nodes[id]).filter(Boolean);
+  if(!ns.length) return;
+  const allOn = ns.every(n => n.hl);
+  ns.forEach(n => { if(allOn) delete n.hl; else n.hl = HL_MATCH[n.color] || HL_COLORS[0]; });
+  save(); renderMap(); renderSelBar();
+}
+function deleteSelectedNodes(){
+  const map = curMap(); if(!map || !multiSel()) return;
+  const ids = [...selSet].filter(id => map.nodes[id]);
+  if(ids.some(id => map.nodes[id].type === 'root')){
+    alert('선택에 중심 노드가 들어 있어요. 중심 노드는 삭제할 수 없습니다.');
+    return;
+  }
+  const toDel = [...ids];
+  for(let i=0; i<toDel.length; i++)
+    Object.values(map.nodes).forEach(c => { if(c.parentId === toDel[i] && !toDel.includes(c.id)) toDel.push(c.id); });
+  const extra = toDel.length - ids.length;
+  if(!confirm(`선택한 노드 ${ids.length}개${extra ? `와 하위 노드 ${extra}개` : ''}를 삭제할까요?`)) return;
+  toDel.forEach(id => delete map.nodes[id]);
+  map.links = (map.links || []).filter(l => !toDel.includes(l.from) && !toDel.includes(l.to));
+  Object.values(map.nodes).forEach(n => { if(n.groupId && !map.nodes[n.groupId]) delete n.groupId; });
+  sel = null; selSet.clear();
+  save(); renderMap(); renderSelBar(); closeSheets();
+}
+
 /* ════════════════ 선택 툴바 ════════════════ */
 function renderSelBar(){
   const bar = document.getElementById('selBar');
   const map = curMap();
+  const btn = (icName, label, fn, cls='') => `<button class="${cls}" data-fn="${fn}">${ic(icName,16)}<span>${label}</span></button>`;
+  /* 여러 개 선택됨: 함께 다룰 수 있는 동작만 보여줌 */
+  if(map && multiSel()){
+    bar.innerHTML = `<span class="sb-count">${selSet.size}개 선택</span>`
+      + btn('group','그룹으로 묶기','groupSel')
+      + btn('star','하이라이트','hlSel')
+      + btn('trash','삭제','delSel','danger')
+      + btn('minus','선택 해제','clearSel');
+    bar.classList.add('show');
+    bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const fn = b.dataset.fn;
+      if(fn === 'groupSel') groupSelectedNodes();
+      else if(fn === 'hlSel') highlightSelectedNodes();
+      else if(fn === 'delSel') deleteSelectedNodes();
+      else if(fn === 'clearSel') finishSelection(new Set());
+    }));
+    return;
+  }
   const n = map && sel ? map.nodes[sel] : null;
   if(!n){ bar.classList.remove('show'); return; }
-  const btn = (icName, label, fn, cls='') => `<button class="${cls}" data-fn="${fn}">${ic(icName,16)}<span>${label}</span></button>`;
   const hasParent = !!(n.parentId && map.nodes[n.parentId]);
   let html = btn('edit','편집','edit');
   html += btn('plus','자식','addChild');
@@ -3310,14 +3513,25 @@ function ensureNodeVisible(map, n){
   if(dx || dy){ map.cam.x += dx; map.cam.y += dy; applyCam(); }
 }
 document.addEventListener('keydown', e => {
-  if(!curMap() || !sel || planActive()) return;
+  if(!curMap() || planActive()) return;
   if(!document.getElementById('scrMap').classList.contains('active')) return;
   if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
   if(document.querySelector('.sheet.show')) return;   // 편집창이 열려 있으면 캔버스 단축키를 끔
   /* 시트 안에서 난 키는 캔버스 단축키로 흘러오면 안 된다. 예를 들어 편집창에서 엔터로 저장하면
      그 엔터가 그대로 버블링돼 "엔터 = 형제 노드 추가"까지 실행돼 빈 노드가 하나 더 생긴다. */
   if(e.target && e.target.closest && e.target.closest('.sheet')) return;
-  const map = curMap(), n = map.nodes[sel];
+  const map = curMap();
+  if(multiSel()){
+    if(e.key === 'Escape'){ e.preventDefault(); finishSelection(new Set()); return; }
+    if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteSelectedNodes(); return; }
+    if(!ARROW_DIR[e.key]) return;
+    /* 방향키는 단일 선택 기준 동작이라 대표 노드(가장 위·왼쪽) 하나로 좁힌 뒤 그 방향으로 이동 */
+    const rep = [...selSet].map(id => map.nodes[id]).filter(Boolean).sort((a,b) => a.y - b.y || a.x - b.x)[0];
+    if(!rep) return;
+    sel = rep.id; selSet.clear();
+  }
+  if(!sel) return;
+  const n = map.nodes[sel];
   if(!n) return;
   if(ARROW_DIR[e.key]){
     /* 방향키: 그 방향에 있는 노드로 선택을 옮김 (노드 위치는 그대로) */
@@ -3335,7 +3549,7 @@ document.addEventListener('keydown', e => {
   else if(e.key === 'Enter'){ e.preventDefault(); if(n.parentId) addChild(n.parentId); }
   else if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteNode(); }
   else if(e.key === 'F2'){ e.preventDefault(); openEdit(sel); }
-  else if(e.key === 'Escape'){ sel = null; renderMap(); renderSelBar(); }
+  else if(e.key === 'Escape'){ sel = null; selSet.clear(); renderMap(); renderSelBar(); }
 });
 
 /* ════════════════ 클라우드 동기화 · 공유 (Firebase — 마인드맵 전용 프로젝트) ════════════════ */
@@ -3975,6 +4189,7 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
 (function boot(){
   const set = (id, name, size) => { const el = document.getElementById(id); if(el) el.innerHTML = ic(name, size); };
   set('searchIc','search',16);
+  set('btnMarquee','marquee',17);
   set('btnAddFree','plus',18);
   set('btnGroups','group',17);
   set('btnLayout','layout',17);
