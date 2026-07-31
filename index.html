@@ -1318,7 +1318,7 @@ function mapCard(m, showPath, draggable){
   return `<div class="map-card ${mapSelectMode ? 'selecting' : ''} ${picked ? 'picked' : ''}" data-mapid="${m.id}">
     ${mapSelectMode ? `<span class="mc-check">✓</span>`
       : (draggable === false ? '' : `<span class="mc-drag" title="드래그해서 순서 변경">${ic('grip',18,2)}</span>`)}
-    <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'💗'}</div>
+    <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🩷'}</div>
     <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${path}${sub}</div></div>
     ${mapSelectMode ? '' : '<button class="mc-btn" data-act="settings">⋯</button>'}
   </div>`;
@@ -1432,7 +1432,7 @@ function openCompareView(){
   body.innerHTML = maps.map(m => `
     <div class="compare-panel">
       <div class="cp-head">
-        <div class="cp-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'💗'}</div>
+        <div class="cp-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🩷'}</div>
         <div class="cp-title">${esc(m.name)}</div>
         <button class="cp-fit" data-fitmap="${m.id}" title="화면 맞춤">⤢</button>
         <button class="cp-edit" data-openmap="${m.id}">편집하기</button>
