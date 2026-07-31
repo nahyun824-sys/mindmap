@@ -68,6 +68,16 @@
 
   .screen{position:absolute; inset:0; display:none; flex-direction:column;}
   .screen.active{display:flex;}
+  /* PC 등 넓은 화면: 목록·설정·플래너가 좌우로 퍼져 한눈에 안 들어오는 문제 때문에
+     폰과 같은 폭으로 모아 가운데 정렬한다. 마인드맵 편집 캔버스(#scrMap)와
+     모아보기(#scrCompare)는 넓은 화면이 그대로 도움이 되므로 제외. */
+  @media (min-width:640px){
+    #scrHome, #scrPlan{
+      max-width:480px; margin-left:auto; margin-right:auto;
+      border-left:1px solid var(--line2); border-right:1px solid var(--line2);
+    }
+    #connBanner{max-width:480px; margin-left:auto; margin-right:auto;}
+  }
 
   /* ═══ 홈: 헤더 & 뷰 & 하단 네비 ═══ */
   .app-header{
@@ -1208,7 +1218,7 @@ function openMap(id){
   document.getElementById('btnItin').style.display = map.kind === 'trip' ? '' : 'none';
   renderMap(); renderSelBar();
   requestAnimationFrame(() => zoomFit());
-  /* 마우스·키보드 환경에서만 방향키 안내를 보여줌 (터치 기기에는 해당 없음) */
+  /* 방향키 안내는 마우스·키보드 환경에서만 (터치 기기에는 해당 없음) */
   const fine = window.matchMedia && matchMedia('(pointer: fine)').matches;
   showHint(map.kind === 'trip'
     ? '노드 선택 후 "일정에 추가"로 플래너에 보낼 수 있어요'
@@ -2681,6 +2691,16 @@ function openEdit(id){
   if(delBtn) delBtn.addEventListener('click', () => { sel = editId; deleteNode(); });
   document.getElementById('editSave').addEventListener('click', () => saveEdit());
   form.onsubmit = e => { e.preventDefault(); saveEdit(); };
+  /* 이 폼에는 submit 버튼이 없고 텍스트·숫자 입력이 둘 이상이어서, 브라우저 기본 동작인
+     "엔터로 전송"이 규칙상 일어나지 않는다. 빠른 노드 생성을 위해 엔터를 직접 저장으로 잇는다.
+     (onkeydown 대입 — openEdit이 다시 불릴 때 리스너가 쌓이지 않도록) */
+  form.onkeydown = e => {
+    if(e.key !== 'Enter') return;
+    if(e.isComposing || e.keyCode === 229) return;   // 한글 조합 중의 엔터는 글자 확정용이므로 통과
+    if(e.target.tagName === 'TEXTAREA') return;      // 여러 줄 입력은 줄바꿈 유지
+    e.preventDefault();
+    saveEdit();
+  };
   openSheet('editSheet');
   // 새로 만든 노드면 바로 타이핑할 수 있게 빈 입력창에 즉시 포커스
   // (iOS는 탭 제스처와 같은 호출 스택에서 focus해야 키보드가 올라옴)
@@ -3080,9 +3100,10 @@ function openSheet(id){
 }
 function closeSheets(){
   document.getElementById('backdrop').classList.remove('show');
-  /* 시트 안 입력칸에 포커스가 남으면 숨긴 뒤에도 키보드 단축키(방향키 등)가 전부 먹히지 않는다 */
+  /* 시트를 숨겨도 포커스가 안의 입력창에 남아 있으면 캔버스 단축키(엔터·Tab·방향키)가 계속 막힌다.
+     연속 작성 흐름이 끊기지 않도록 닫을 때 포커스를 놓아준다. */
   const a = document.activeElement;
-  if(a && a !== document.body && a.closest && a.closest('.sheet')) a.blur();
+  if(a && a.closest && a.closest('.sheet')) a.blur();
   document.querySelectorAll('.sheet').forEach(s => s.classList.remove('show'));
 }
 
@@ -3248,74 +3269,68 @@ function importData(input){
   r.readAsText(f);
 }
 
-/* ════════════════ 방향키로 노드 이동 ════════════════ */
-const ARROW_DIRS = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down'};
-/* 선택한 노드가 화면 밖이면 최소한만 밀어서 보이게 함 (항상 중앙에 두면 시야가 크게 튄다).
-   cam은 저장 대상이지만 방향키 탐색마다 저장하면 클라우드 쓰기가 낭비되므로 save()는 하지 않는다. */
-function revealNode(map, n){
-  const r = wrap.getBoundingClientRect();
-  if(!r.width || !r.height) return;
-  const {w, h} = nodeSize(map, n);
-  const pad = 28;                                    // 화면 가장자리 여백
-  const cx = r.width/2 + map.cam.x + n.x*map.cam.z;
-  const cy = r.height/2 + map.cam.y + n.y*map.cam.z;
-  const hw = w/2*map.cam.z + pad, hh = h/2*map.cam.z + pad;
-  if(cx - hw < 0) map.cam.x -= cx - hw;
-  else if(cx + hw > r.width) map.cam.x -= cx + hw - r.width;
-  if(cy - hh < 0) map.cam.y -= cy - hh;
-  else if(cy + hh > r.height) map.cam.y -= cy + hh - r.height;
-}
-/* 누른 방향에 있는 노드 중 가장 자연스러운 하나를 고른다.
-   진행 방향과 수직으로 겹치는("같은 줄") 노드를 먼저 보고, 없으면 방향 쪽에서 가장 가까운 노드를 고른다. */
-function focusNodeInDirection(dir){
-  const map = curMap(); if(!map) return false;
-  const nodes = Object.values(map.nodes);
-  if(!nodes.length) return false;
-  /* 선택된 노드가 없으면 중심 주제부터 시작 */
-  if(!sel || !map.nodes[sel]){
-    sel = map.nodes[map.rootId] ? map.rootId : nodes[0].id;
-    revealNode(map, map.nodes[sel]);
-    renderMap(); renderSelBar();
-    return true;
-  }
-  const cur = map.nodes[sel];
-  const horiz = dir === 'left' || dir === 'right';
-  const sign = (dir === 'right' || dir === 'down') ? 1 : -1;
-  const cs = nodeSize(map, cur);
-  const curPerpHalf = (horiz ? cs.h : cs.w)/2;
-  const cands = [];
-  nodes.forEach(n => {
-    if(n.id === cur.id) return;
-    const along = sign * ((horiz ? n.x : n.y) - (horiz ? cur.x : cur.y));
-    if(along <= 1) return;                           // 반대쪽이거나 같은 위치
-    const perp = Math.abs((horiz ? n.y : n.x) - (horiz ? cur.y : cur.x));
-    const s = nodeSize(map, n);
-    const inline = perp < curPerpHalf + (horiz ? s.h : s.w)/2;
-    /* 같은 줄이면 축 거리 위주로, 아니면 옆으로 벗어난 만큼 크게 감점 */
-    cands.push({n, inline, score: along + perp * (inline ? 0.25 : 3)});
-  });
-  if(!cands.length) return false;
-  const lined = cands.filter(c => c.inline);
-  const pool = lined.length ? lined : cands;
-  pool.sort((a, b) => a.score - b.score);
-  sel = pool[0].n.id;
-  revealNode(map, pool[0].n);
-  renderMap(); renderSelBar();
-  return true;
-}
-
 /* ════════════════ 데스크톱 단축키 ════════════════ */
-document.addEventListener('keydown', e => {
-  if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
-  if(!document.getElementById('scrMap').classList.contains('active')) return;
-  if(document.querySelector('.sheet.show')) return;   // 편집창이 열려 있으면 캔버스 단축키를 막음
-  const map = curMap();
-  if(!map || planActive()) return;
-  const dir = ARROW_DIRS[e.key];
-  if(dir){ e.preventDefault(); focusNodeInDirection(dir); return; }
-  if(!sel) return;
-  const n = map.nodes[sel];
+const ARROW_DIR = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
+/* 누른 방향에 있는 가장 가까운 노드 찾기.
+   방향축으로 나아간 거리(along)가 양수인 노드만 후보로 두고, 축에서 벗어난 정도(side)에
+   가중치를 줘서 "그 방향으로 자연스럽게 다음"인 노드를 고른다.
+   45도 원뿔 안에 아무것도 없으면 같은 쪽에서 가장 가까운 노드로 대신 넘어간다. */
+function nodeInDirection(map, fromId, dx, dy){
+  const c = map.nodes[fromId]; if(!c) return null;
+  let best = null, bestScore = Infinity, alt = null, altDist = Infinity;
+  Object.values(map.nodes).forEach(n => {
+    if(n.id === fromId) return;
+    const vx = n.x - c.x, vy = n.y - c.y;
+    const along = vx*dx + vy*dy;
+    if(along <= 0) return;                       // 반대 방향이거나 나란한 위치는 제외
+    const side = Math.abs(vx*dy - vy*dx);
+    const dist = Math.hypot(vx, vy);
+    if(side <= along){                            // 45도 원뿔 안 = 그 방향으로 확실히 놓인 노드
+      const score = along + side*2;
+      if(score < bestScore){ bestScore = score; best = n; }
+    }
+    if(dist < altDist){ altDist = dist; alt = n; }
+  });
+  return best || alt;
+}
+/* 선택이 화면 밖으로 나가면 그 노드가 보이도록 카메라만 살짝 옮긴다.
+   보기 위한 이동이라 save()는 하지 않고, 다음 실제 편집 때 함께 저장된다. */
+function ensureNodeVisible(map, n){
   if(!n) return;
+  const r = wrap.getBoundingClientRect();
+  const {w, h} = nodeSize(map, n);
+  const sx = r.width/2 + map.cam.x + n.x*map.cam.z;
+  const sy = r.height/2 + map.cam.y + n.y*map.cam.z;
+  const hw = (w/2)*map.cam.z + 28, hh = (h/2)*map.cam.z + 28;
+  let dx = 0, dy = 0;
+  if(sx - hw < 0) dx = -(sx - hw);
+  else if(sx + hw > r.width) dx = r.width - (sx + hw);
+  if(sy - hh < 0) dy = -(sy - hh);
+  else if(sy + hh > r.height) dy = r.height - (sy + hh);
+  if(dx || dy){ map.cam.x += dx; map.cam.y += dy; applyCam(); }
+}
+document.addEventListener('keydown', e => {
+  if(!curMap() || !sel || planActive()) return;
+  if(!document.getElementById('scrMap').classList.contains('active')) return;
+  if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if(document.querySelector('.sheet.show')) return;   // 편집창이 열려 있으면 캔버스 단축키를 끔
+  /* 시트 안에서 난 키는 캔버스 단축키로 흘러오면 안 된다. 예를 들어 편집창에서 엔터로 저장하면
+     그 엔터가 그대로 버블링돼 "엔터 = 형제 노드 추가"까지 실행돼 빈 노드가 하나 더 생긴다. */
+  if(e.target && e.target.closest && e.target.closest('.sheet')) return;
+  const map = curMap(), n = map.nodes[sel];
+  if(!n) return;
+  if(ARROW_DIR[e.key]){
+    /* 방향키: 그 방향에 있는 노드로 선택을 옮김 (노드 위치는 그대로) */
+    e.preventDefault();
+    const [dx, dy] = ARROW_DIR[e.key];
+    const next = nodeInDirection(map, sel, dx, dy);
+    if(next){
+      sel = next.id;
+      renderMap(); renderSelBar();
+      ensureNodeVisible(map, next);
+    }
+    return;
+  }
   if(e.key === 'Tab'){ e.preventDefault(); addChild(sel); }
   else if(e.key === 'Enter'){ e.preventDefault(); if(n.parentId) addChild(n.parentId); }
   else if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteNode(); }
