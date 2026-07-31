@@ -422,6 +422,14 @@
   }
   @keyframes btnspin{to{transform:rotate(360deg);}}
   .login-note{margin-top:14px; font-size:12px; color:var(--sub); line-height:1.6;}
+  .login-error{
+    display:none; margin-top:14px; padding:11px 13px; border-radius:10px; text-align:left;
+    background:var(--red-soft); color:var(--red); font-size:12.5px; line-height:1.65; word-break:break-word;
+  }
+  .login-error code{
+    display:block; margin-top:6px; font-size:11px; opacity:.85;
+    -webkit-user-select:text; user-select:text;
+  }
   .viewing-banner{
     display:none; background:var(--primary); color:var(--on-primary);
     padding:calc(10px + var(--sat)) 20px 10px; align-items:center; justify-content:space-between;
@@ -494,6 +502,7 @@
       </svg>
       Google로 로그인
     </button>
+    <div class="login-error" id="loginError"></div>
     <div class="login-note">투두 캘린더와 같은 계정을 쓰면 돼요</div>
     <button class="login-note" id="loginOfflineBtn" style="display:none; background:none; border:none; text-decoration:underline; margin-top:10px; cursor:pointer" onclick="continueOffline()">
       연결이 오래 걸려요 · 이 기기에 저장된 데이터로 계속하기
@@ -588,6 +597,14 @@
       </div>
       <div class="settings-section">
         <div class="sec-title">💾 백업</div>
+        <button class="set-item" id="autoBackupRow" onclick="toggleAutoBackup()">
+          <span class="si-icon" id="autoBackupIcon">🗂️</span>
+          <span id="autoBackupLabel">파일 자동 저장<span class="si-desc" id="autoBackupDesc">백업 파일을 한 번 지정하면 바뀔 때마다 자동으로 덮어써요</span></span>
+        </button>
+        <button class="set-item" id="autoBackupRegrant" style="display:none" onclick="regrantAutoBackup()">
+          <span class="si-icon">🔓</span>
+          <span>자동 저장 다시 허용<span class="si-desc">브라우저를 다시 열면 파일 쓰기 권한을 한 번 더 확인해요</span></span>
+        </button>
         <button class="set-item" onclick="exportData()">
           <span class="si-icon">⬇️</span>
           <span>백업하기<span class="si-desc">모든 마인드맵을 JSON 파일로 저장합니다</span></span>
@@ -941,6 +958,7 @@ function save(){
   // 공유받은 마인드맵을 편집 중일 땐 내 로컬 캐시를 덮어쓰지 않음
   if(!isShared()) saveLocalOnly();
   scheduleCloudPush();
+  scheduleAutoBackup();
 }
 function load(){
   try{
@@ -3071,6 +3089,144 @@ function exportData(){
   a.click();
   URL.revokeObjectURL(a.href);
 }
+/* ════════════════ 백업 파일 자동 저장 ════════════════ */
+/* File System Access API로 파일 핸들을 한 번 받아두고, 내용이 바뀌면 그 파일에 계속 덮어쓴다.
+   핸들은 구조화 복제만 가능해 localStorage에 못 넣으므로 IndexedDB에 보관한다. */
+const AB_DB = 'mindtrip-fs', AB_STORE = 'handles', AB_KEY = 'backup';
+const fsSupported = () => typeof window.showSaveFilePicker === 'function';
+let abHandle = null, abTimer = null, abLastAt = 0, abLastErr = '';
+
+function abOpenDB(){
+  return new Promise((resolve, reject) => {
+    const rq = indexedDB.open(AB_DB, 1);
+    rq.onupgradeneeded = () => { if(!rq.result.objectStoreNames.contains(AB_STORE)) rq.result.createObjectStore(AB_STORE); };
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+}
+function abStore(handle){
+  return abOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(AB_STORE, 'readwrite');
+    if(handle) tx.objectStore(AB_STORE).put(handle, AB_KEY);
+    else tx.objectStore(AB_STORE).delete(AB_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  })).catch(e => console.warn('자동 저장 파일 기억 실패:', e));
+}
+function abLoad(){
+  return abOpenDB().then(db => new Promise((resolve, reject) => {
+    const rq = db.transaction(AB_STORE, 'readonly').objectStore(AB_STORE).get(AB_KEY);
+    rq.onsuccess = () => resolve(rq.result || null);
+    rq.onerror = () => reject(rq.error);
+  })).catch(() => null);
+}
+async function toggleAutoBackup(){
+  if(!fsSupported()){
+    alert('이 브라우저는 파일 자동 저장을 지원하지 않아요.\n\nPC의 크롬·엣지에서는 쓸 수 있고, 아이폰 사파리에서는 아래 "백업하기"로 수동 저장해주세요.');
+    return;
+  }
+  if(abHandle){
+    if(!confirm('파일 자동 저장을 끌까요?\n(파일은 지워지지 않고, 이후 변경만 저장되지 않아요)')) return;
+    abHandle = null; abLastErr = ''; abLastAt = 0;
+    await abStore(null);
+    renderAutoBackup();
+    return;
+  }
+  let h;
+  try{
+    h = await window.showSaveFilePicker({
+      suggestedName: 'mindtrip-backup.json',
+      types: [{description:'MindTrip 백업', accept:{'application/json':['.json']}}]
+    });
+  }catch(e){
+    if(e && e.name === 'AbortError') return;   // 사용자가 파일 선택을 취소
+    alert('파일을 지정할 수 없었어요: ' + (e && e.message || e));
+    return;
+  }
+  abHandle = h; abLastErr = '';
+  await abStore(h);
+  await writeAutoBackup(true);
+  renderAutoBackup();
+}
+async function regrantAutoBackup(){
+  if(!abHandle) return;
+  try{
+    const p = await abHandle.requestPermission({mode:'readwrite'});
+    if(p !== 'granted'){ abLastErr = '파일 쓰기 권한이 거부됐어요.'; renderAutoBackup(); return; }
+    abLastErr = '';
+    await writeAutoBackup(true);
+  }catch(e){ abLastErr = '권한 확인 실패: ' + (e && e.message || e); }
+  renderAutoBackup();
+}
+/* 실제 쓰기. force가 아니면 권한이 이미 허용된 경우에만 조용히 쓴다(재로드 직후 무단 권한창 방지) */
+async function writeAutoBackup(force){
+  if(!abHandle) return;
+  try{
+    const perm = await abHandle.queryPermission({mode:'readwrite'});
+    if(perm !== 'granted'){
+      if(!force){ renderAutoBackup(); return; }
+      const asked = await abHandle.requestPermission({mode:'readwrite'});
+      if(asked !== 'granted'){ abLastErr = '파일 쓰기 권한이 필요해요.'; renderAutoBackup(); return; }
+    }
+    const w = await abHandle.createWritable();
+    await w.write(JSON.stringify(state, null, 2));
+    await w.close();
+    abLastAt = Date.now(); abLastErr = '';
+  }catch(e){
+    /* 파일이 삭제·이동됐거나 권한이 사라진 경우 */
+    abLastErr = (e && e.name === 'NotFoundError') ? '지정한 파일을 찾을 수 없어요. 다시 지정해주세요.'
+      : '자동 저장 실패: ' + (e && e.message || e);
+    console.warn('백업 파일 자동 저장 실패:', e);
+  }
+  renderAutoBackup();
+}
+/* save()마다 호출 — 잦은 편집에 파일을 계속 열지 않도록 묶어서 쓴다 */
+function scheduleAutoBackup(){
+  if(!abHandle) return;
+  clearTimeout(abTimer);
+  abTimer = setTimeout(() => writeAutoBackup(false), 1500);
+}
+function renderAutoBackup(){
+  const row = document.getElementById('autoBackupRow');
+  const icon = document.getElementById('autoBackupIcon');
+  const label = document.getElementById('autoBackupLabel');
+  const desc = document.getElementById('autoBackupDesc');
+  const regrant = document.getElementById('autoBackupRegrant');
+  if(!row || !label || !desc) return;
+  if(!fsSupported()){
+    icon.textContent = '🗂️';
+    label.firstChild.textContent = '파일 자동 저장 (미지원)';
+    desc.textContent = '이 브라우저는 지원하지 않아요. 아래 "백업하기"로 저장해주세요.';
+    if(regrant) regrant.style.display = 'none';
+    return;
+  }
+  if(!abHandle){
+    icon.textContent = '🗂️';
+    label.firstChild.textContent = '파일 자동 저장 켜기';
+    desc.textContent = '백업 파일을 한 번 지정하면 바뀔 때마다 자동으로 덮어써요';
+    if(regrant) regrant.style.display = 'none';
+    return;
+  }
+  icon.textContent = abLastErr ? '⚠️' : '✅';
+  label.firstChild.textContent = '파일 자동 저장 켜짐 · 끄기';
+  desc.textContent = abLastErr ? abLastErr
+    : `${abHandle.name}${abLastAt ? ' · 마지막 저장 ' + fmtLogTime(abLastAt) : ' · 변경되면 저장돼요'}`;
+  if(regrant) regrant.style.display = abLastErr ? '' : 'none';
+}
+/* 앱을 다시 열었을 때 지난번 지정한 파일 복구 (권한창은 사용자가 누를 때만 띄움) */
+async function initAutoBackup(){
+  if(!fsSupported()){ renderAutoBackup(); return; }
+  const h = await abLoad();
+  if(h){
+    abHandle = h;
+    try{
+      const perm = await h.queryPermission({mode:'readwrite'});
+      if(perm !== 'granted') abLastErr = '자동 저장을 이어가려면 파일 쓰기를 다시 허용해주세요.';
+    }catch(e){ abLastErr = '파일 권한을 확인할 수 없어요. 다시 지정해주세요.'; }
+  }
+  renderAutoBackup();
+}
+
 function importData(input){
   const f = input.files[0]; if(!f) return;
   const r = new FileReader();
@@ -3195,15 +3351,77 @@ if(cloud.on){
   }
   function loginErrorMessage(e){
     const map = {
-      'auth/popup-blocked':'팝업이 차단됐어요. 브라우저의 팝업 차단 설정을 확인한 뒤 다시 시도해주세요.',
+      'auth/popup-blocked':'팝업이 차단돼서 다른 방식으로 다시 시도했어요. 계속 안 되면 브라우저의 팝업 차단 설정을 확인해주세요.',
       'auth/network-request-failed':'네트워크 연결을 확인한 뒤 다시 시도해주세요.',
-      'auth/unauthorized-domain':'이 주소에서는 Google 로그인을 사용할 수 없어요.'
+      'auth/unauthorized-domain':`이 주소(${location.hostname})가 Firebase의 승인된 도메인에 없어요. Firebase 콘솔 → Authentication → 설정 → 승인된 도메인에 추가해주세요.`,
+      'auth/operation-not-allowed':'Firebase 콘솔에서 Google 로그인이 아직 켜져 있지 않아요. Authentication → 로그인 방법 → Google을 사용 설정해주세요.',
+      'auth/operation-not-supported-in-this-environment':'이 환경에서는 팝업 로그인을 쓸 수 없어 다른 방식으로 다시 시도했어요.',
+      'auth/web-storage-unsupported':'브라우저가 쿠키·저장소를 막고 있어요. 시크릿 모드를 끄거나 "사이트 간 추적 방지"를 해제한 뒤 다시 시도해주세요.',
+      'auth/invalid-api-key':'Firebase 설정값(apiKey)이 잘못됐어요.',
+      'auth/internal-error':'로그인 처리 중 내부 오류가 났어요. 다시 시도해주세요.'
     };
     return map[e.code] || (e.message || '알 수 없는 오류가 발생했어요.');
   }
+  function showLoginError(e){
+    const box = document.getElementById('loginError');
+    if(!box) return;
+    box.innerHTML = '';
+    box.appendChild(document.createTextNode(loginErrorMessage(e)));
+    if(e && e.code){
+      const c = document.createElement('code');
+      c.textContent = '오류 코드: ' + e.code;   // 원인을 바로 알 수 있게 코드까지 노출
+      box.appendChild(c);
+    }
+    box.style.display = 'block';
+  }
+  const clearLoginError = () => { const b = document.getElementById('loginError'); if(b) b.style.display = 'none'; };
+  /* 설치형 PWA(standalone)와 iOS는 팝업이 부모 창으로 결과를 돌려주지 못해 로그인이 그냥 실패한다.
+     이런 환경은 처음부터 리다이렉트 방식으로 로그인한다. */
+  function mustUseRedirect(){
+    const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return standalone || iOS;
+  }
+  /* 팝업이 이 환경에서 아예 못 쓰이는 경우들 → 리다이렉트로 자동 전환 */
+  const POPUP_FALLBACK = ['auth/popup-blocked','auth/operation-not-supported-in-this-environment',
+    'auth/web-storage-unsupported','auth/internal-error','auth/timeout'];
+  const REDIRECT_FLAG = 'mm-auth-redirecting';
+  function newProvider(){
+    const p = new firebase.auth.GoogleAuthProvider();
+    p.setCustomParameters({prompt:'select_account'});
+    return p;
+  }
+  function startRedirectLogin(){
+    try{ sessionStorage.setItem(REDIRECT_FLAG, '1'); }catch(e){}
+    fbAuth.signInWithRedirect(newProvider()).catch(e => {
+      try{ sessionStorage.removeItem(REDIRECT_FLAG); }catch(x){}
+      setLoginLoading(false);
+      showLoginError(e);
+    });
+  }
+  /* 로그인 상태를 이 기기에 계속 보관(기본값이지만, 저장소가 막힌 브라우저에선 실패할 수 있어 명시) */
+  fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .catch(e => console.warn('로그인 유지 설정 실패:', e));
+  /* 리다이렉트 로그인에서 돌아온 결과 처리. 이 처리가 없으면 리다이렉트 방식은 아예 완료되지 않는다. */
+  fbAuth.getRedirectResult().then(res => {
+    let flag = null;
+    try{ flag = sessionStorage.getItem(REDIRECT_FLAG); sessionStorage.removeItem(REDIRECT_FLAG); }catch(e){}
+    if(res && res.user) return;             // 로그인 성공 → onAuthStateChanged가 이어서 처리
+    if(flag && !fbAuth.currentUser){
+      showLoginError({code:'auth/redirect-no-result',
+        message:'로그인 창에서 돌아왔지만 로그인이 완료되지 않았어요. 브라우저의 쿠키·사이트 간 추적 방지 설정을 확인한 뒤 다시 시도해주세요.'});
+      setLoginLoading(false);
+    }
+  }).catch(e => {
+    try{ sessionStorage.removeItem(REDIRECT_FLAG); }catch(x){}
+    setLoginLoading(false);
+    showLoginError(e);
+  });
   fbAuth.onAuthStateChanged(async user => {
     cloud.me = user;
     if(user){
+      clearLoginError();
       renderAvatar();
       /* 초기 동기화(사용자 문서 저장·초대 참여·마이그레이션)가 네트워크 문제로 멈춰도
          화면 진입 자체는 막히지 않도록 타임아웃을 두고, 남은 작업은 백그라운드에서 계속함 */
@@ -3250,19 +3468,25 @@ if(cloud.on){
   }, 4000);
   loginBtn.addEventListener('click', () => {
     if(loginBtn.disabled) return;
+    clearLoginError();
     setLoginLoading(true);
+    /* 팝업을 못 쓰는 환경이면 곧바로 리다이렉트 */
+    if(mustUseRedirect()){ startRedirectLogin(); return; }
     let settled = false;
-    const stuckT = setTimeout(() => {
-      if(settled) return;
-      setLoginLoading(false);
-      alert('로그인 창이 응답하지 않아요. 팝업 차단 설정을 확인한 뒤 다시 시도해주세요.');
-    }, 20000);
-    fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    /* 팝업이 열렸지만 아무 응답도 없는 상태(차단기·확장프로그램 등)에서도 갇히지 않게 리다이렉트로 넘어감 */
+    const stuckT = setTimeout(() => { if(!settled){ settled = true; startRedirectLogin(); } }, 15000);
+    fbAuth.signInWithPopup(newProvider())
+      .then(() => { settled = true; clearTimeout(stuckT); setLoginLoading(false); })
       .catch(e => {
-        if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
-        alert('로그인 실패: ' + loginErrorMessage(e));
-      })
-      .finally(() => { settled = true; clearTimeout(stuckT); setLoginLoading(false); });
+        if(settled) return;
+        settled = true; clearTimeout(stuckT);
+        if(e.code === 'auth/cancelled-popup-request') return;   // 중복 클릭 — 앞선 시도가 진행 중
+        if(e.code === 'auth/popup-closed-by-user'){ setLoginLoading(false); return; }   // 사용자가 직접 닫음
+        /* 팝업이 막힌 환경이면 리다이렉트로 자동 재시도 (버튼은 계속 로딩 상태 유지) */
+        if(POPUP_FALLBACK.includes(e.code)){ startRedirectLogin(); return; }
+        setLoginLoading(false);
+        showLoginError(e);
+      });
   });
 }
 function doSignOut(){
@@ -3686,6 +3910,7 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   applyTheme();
   renderHome();
   renderShareUI();
+  initAutoBackup();
   // 클라우드 사용 가능하면 로그인 게이트, 아니면(오프라인 등) 로컬 모드로 바로 진입
   show(cloud.on ? 'scrLogin' : 'scrHome');
 })();
