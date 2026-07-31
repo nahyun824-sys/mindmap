@@ -162,9 +162,9 @@
     font-size:19px; flex:0 0 40px;
   }
   .mc-icon.trip{background:var(--primary-soft);}
-  .mc-icon.idea{background:#d5f5e3;}
-  :root[data-theme="dark"] .mc-icon.idea{background:rgba(104,211,145,.15);}
-  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .mc-icon.idea{background:rgba(104,211,145,.15);} }
+  .mc-icon.idea{background:#fce7f3;}
+  :root[data-theme="dark"] .mc-icon.idea{background:rgba(249,168,212,.16);}
+  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .mc-icon.idea{background:rgba(249,168,212,.16);} }
   .mc-main{flex:1; min-width:0;}
   .mc-title{font-size:14.5px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .mc-sub{font-size:11.5px; color:var(--sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -206,9 +206,9 @@
   .cp-head{display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line);}
   .cp-icon{width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; flex:0 0 32px;}
   .cp-icon.trip{background:var(--primary-soft);}
-  .cp-icon.idea{background:#d5f5e3;}
-  :root[data-theme="dark"] .cp-icon.idea{background:rgba(104,211,145,.15);}
-  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .cp-icon.idea{background:rgba(104,211,145,.15);} }
+  .cp-icon.idea{background:#fce7f3;}
+  :root[data-theme="dark"] .cp-icon.idea{background:rgba(249,168,212,.16);}
+  @media (prefers-color-scheme: dark){ :root[data-theme="system"] .cp-icon.idea{background:rgba(249,168,212,.16);} }
   .cp-title{flex:1; font-size:14px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .cp-edit{flex:0 0 auto; background:var(--field); color:var(--primary); font-size:12px; font-weight:600; padding:7px 12px; border-radius:9px;}
   .cp-svgwrap{
@@ -1318,7 +1318,7 @@ function mapCard(m, showPath, draggable){
   return `<div class="map-card ${mapSelectMode ? 'selecting' : ''} ${picked ? 'picked' : ''}" data-mapid="${m.id}">
     ${mapSelectMode ? `<span class="mc-check">✓</span>`
       : (draggable === false ? '' : `<span class="mc-drag" title="드래그해서 순서 변경">${ic('grip',18,2)}</span>`)}
-    <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
+    <div class="mc-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'💗'}</div>
     <div class="mc-main"><div class="mc-title">${esc(m.name)}</div><div class="mc-sub">${path}${sub}</div></div>
     ${mapSelectMode ? '' : '<button class="mc-btn" data-act="settings">⋯</button>'}
   </div>`;
@@ -1432,7 +1432,7 @@ function openCompareView(){
   body.innerHTML = maps.map(m => `
     <div class="compare-panel">
       <div class="cp-head">
-        <div class="cp-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'🧠'}</div>
+        <div class="cp-icon ${m.kind==='trip'?'trip':'idea'}">${m.kind==='trip'?'✈️':'💗'}</div>
         <div class="cp-title">${esc(m.name)}</div>
         <button class="cp-fit" data-fitmap="${m.id}" title="화면 맞춤">⤢</button>
         <button class="cp-edit" data-openmap="${m.id}">편집하기</button>
