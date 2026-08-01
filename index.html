@@ -3740,38 +3740,70 @@ if(cloud.on){
   /* 팝업이 이 환경에서 아예 못 쓰이는 경우들 → 리다이렉트로 자동 전환 */
   const POPUP_FALLBACK = ['auth/popup-blocked','auth/operation-not-supported-in-this-environment',
     'auth/web-storage-unsupported','auth/internal-error','auth/timeout'];
-  const REDIRECT_FLAG = 'mm-auth-redirecting';
+  const REDIRECT_FLAG = 'mm-auth-redirect';
+  /* ⚠️ Firebase의 signInWithRedirect는 쓰지 않는다. 로그인 결과가 다른 도메인
+     (hyoni-mindmaps.firebaseapp.com)의 저장소를 거쳐 돌아오는 구조라, 사파리·크롬의
+     서드파티 저장소 차단 때문에 iOS·설치형 PWA에서 결과가 오류도 없이 사라진다.
+     대신 구글 OAuth 화면으로 갔다가 이 앱 주소로 곧장 돌아오는 직접 리다이렉트를 쓴다.
+     (전제: Google Cloud 콘솔 → 웹 클라이언트에 아래 주소가 "승인된 리디렉션 URI"로 등록) */
+  const OAUTH_CLIENT_ID = '731588076123-o11nc7sbbsdqkp7bufc9dekdf8ebdm5p.apps.googleusercontent.com';
+  const oauthRedirectUri = () => location.origin + location.pathname.replace(/index\.html$/, '');
   function newProvider(){
     const p = new firebase.auth.GoogleAuthProvider();
     p.setCustomParameters({prompt:'select_account'});
     return p;
   }
   function startRedirectLogin(){
-    try{ sessionStorage.setItem(REDIRECT_FLAG, '1'); }catch(e){}
-    fbAuth.signInWithRedirect(newProvider()).catch(e => {
-      try{ sessionStorage.removeItem(REDIRECT_FLAG); }catch(x){}
+    try{
+      const st = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,'0')).join('');
+      /* iOS 홈 화면 앱은 리다이렉트를 오가는 사이 sessionStorage가 사라질 수 있어 localStorage에 보관.
+         초대 링크(?join=)로 들어온 경우를 위해 원래 쿼리도 함께 기억한다. */
+      localStorage.setItem(REDIRECT_FLAG, JSON.stringify({st, search: location.search}));
+      location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+        client_id: OAUTH_CLIENT_ID,
+        redirect_uri: oauthRedirectUri(),
+        response_type: 'token',
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        state: st
+      }));
+    }catch(e){
+      try{ localStorage.removeItem(REDIRECT_FLAG); }catch(x){}
       setLoginLoading(false);
       showLoginError(e);
-    });
+    }
   }
   /* 로그인 상태를 이 기기에 계속 보관(기본값이지만, 저장소가 막힌 브라우저에선 실패할 수 있어 명시) */
   fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
     .catch(e => console.warn('로그인 유지 설정 실패:', e));
-  /* 리다이렉트 로그인에서 돌아온 결과 처리. 이 처리가 없으면 리다이렉트 방식은 아예 완료되지 않는다. */
-  fbAuth.getRedirectResult().then(res => {
-    let flag = null;
-    try{ flag = sessionStorage.getItem(REDIRECT_FLAG); sessionStorage.removeItem(REDIRECT_FLAG); }catch(e){}
-    if(res && res.user) return;             // 로그인 성공 → onAuthStateChanged가 이어서 처리
-    if(flag && !fbAuth.currentUser){
-      showLoginError({code:'auth/redirect-no-result',
-        message:'로그인 창에서 돌아왔지만 로그인이 완료되지 않았어요. 브라우저의 쿠키·사이트 간 추적 방지 설정을 확인한 뒤 다시 시도해주세요.'});
-      setLoginLoading(false);
+  /* 구글에서 돌아온 로그인 응답 처리 — 액세스 토큰이 주소 해시(#access_token=…)로 곧장 도착한다.
+     이 처리가 없으면 리다이렉트 방식은 아예 완료되지 않는다. */
+  (function handleOAuthReturn(){
+    let saved = null;
+    try{
+      const raw = localStorage.getItem(REDIRECT_FLAG);
+      if(raw){ localStorage.removeItem(REDIRECT_FLAG); saved = JSON.parse(raw); }
+    }catch(e){}
+    const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+    const token = h.get('access_token'), errCode = h.get('error');
+    if(!token && !errCode) return;          // 리다이렉트 복귀가 아님 (도중에 포기한 흔적만 있으면 조용히 정리)
+    /* 토큰이 주소창·방문기록에 남지 않게 즉시 지우고, 로그인 전 원래 주소(초대 링크 등)를 복원 */
+    history.replaceState({}, '', location.pathname + ((saved && saved.search) || location.search));
+    if(errCode){
+      showLoginError({code:'auth/' + errCode, message: errCode === 'access_denied'
+        ? '구글 로그인 요청이 거절됐어요. 다시 시도해주세요.'
+        : '구글 로그인 중 오류가 났어요. 다시 시도해주세요.'});
+      return;
     }
-  }).catch(e => {
-    try{ sessionStorage.removeItem(REDIRECT_FLAG); }catch(x){}
-    setLoginLoading(false);
-    showLoginError(e);
-  });
+    if(saved && saved.st && h.get('state') !== saved.st){
+      showLoginError({code:'auth/state-mismatch',
+        message:'로그인 응답이 이 기기에서 시작한 요청과 일치하지 않아요. 다시 시도해주세요.'});
+      return;
+    }
+    setLoginLoading(true);
+    fbAuth.signInWithCredential(firebase.auth.GoogleAuthProvider.credential(null, token))
+      .catch(e => { setLoginLoading(false); showLoginError(e); });
+  })();
   fbAuth.onAuthStateChanged(async user => {
     cloud.me = user;
     if(user){
