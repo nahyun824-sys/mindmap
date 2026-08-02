@@ -598,6 +598,14 @@
         <div class="sec-title">👤 계정</div>
         <div class="su-item" id="myAccountRow"></div>
         <div class="set-note" id="syncStatus" style="padding:6px 0 2px"></div>
+        <button class="set-item" onclick="reloadFromServer()">
+          <span class="si-icon">🔄</span>
+          <span>서버 데이터 다시 불러오기<span class="si-desc">이 기기의 화면을 Firebase 서버 데이터와 똑같이 맞춥니다</span></span>
+        </button>
+        <button class="set-item" onclick="overwriteServerFromThisDevice()">
+          <span class="si-icon">☁️</span>
+          <span>이 기기 데이터를 서버에 저장<span class="si-desc">현재 기기의 내용이 맞을 때만 사용하세요</span></span>
+        </button>
         <button class="set-item" onclick="doSignOut()">
           <span class="si-icon">🚪</span><span>로그아웃</span>
         </button>
@@ -3752,11 +3760,13 @@ const cloud = {
   on:false, me:null, viewingUid:null, viewingName:'',
   unsubs:[], pushT:null, lastPushed:{}, lastTopics:'',
   sharedWith:[], sharedMaps:[], logEntries:[], reconnAttempts:0, lastSnapAt:0,
-  /* synced: 이번 리스너 연결에서 첫 "서버" 스냅샷을 받았는지. 받기 전에는 push 금지
-     (방금 켠 기기의 오래된 로컬 데이터가 다른 기기의 최신 데이터를 덮어쓰는 사고 방지) */
-  synced:false, deleted:{}, lastServerSyncAt:0,
-  healthBusy:false, lastHealthAt:0
+  /* synced: 현재 보고 있는 사용자 데이터의 서버 원본을 한 번 이상 확인했는지.
+     authoritativeReady가 되기 전에는 절대 로컬 데이터를 서버에 밀지 않는다. */
+  synced:false, authoritativeReady:false, authoritativeUid:null,
+  deleted:{}, lastServerSyncAt:0,
+  healthBusy:false, lastHealthAt:0, lastError:''
 };
+const CLOUD_OWNER_KEY = 'mindtrip-cloud-owner-v1';
 let fbAuth = null, fbDb = null, reconnT = null, healthT = null, authBypassed = false;
 const configReady = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 try{
@@ -3773,14 +3783,25 @@ try{
     cloud.on = true;
   }
 }catch(e){ if(configReady) console.error('Firebase 초기화 실패:', e); cloud.on = false; }
-function setConnBanner(mode){
+function errorCodeOf(err){
+  return err && (err.code || err.name) ? String(err.code || err.name) : '';
+}
+function setConnBanner(mode, err){
   const el = document.getElementById('connBanner');
   if(!el) return;
-  if(mode === 'ok'){ el.classList.remove('on'); el.innerHTML = ''; return; }
+  if(mode === 'ok'){
+    cloud.lastError = '';
+    el.classList.remove('on'); el.innerHTML = '';
+    return;
+  }
+  const code = errorCodeOf(err);
+  cloud.lastError = code || cloud.lastError || '';
   el.innerHTML = '';
-  el.appendChild(document.createTextNode(mode === 'offline' ? 'DB와 연결이 끊겼습니다 · 오프라인'
-    : mode === 'perm' ? 'DB 접근 권한이 없습니다 · 다시 로그인해주세요'
-    : 'DB와 연결이 끊겼습니다'));
+  const msg = mode === 'offline' ? 'DB와 연결이 끊겼습니다 · 오프라인'
+    : mode === 'perm' ? 'DB 접근 권한이 없습니다 · Firebase 규칙을 확인하세요'
+    : mode === 'auth' ? '로그인이 유지되지 않아 DB에 연결할 수 없습니다'
+    : 'DB와 연결이 끊겼습니다';
+  el.appendChild(document.createTextNode(msg + (cloud.lastError ? ` · ${cloud.lastError}` : '')));
   if(mode !== 'perm'){
     const btn = document.createElement('button');
     btn.textContent = '지금 재시도';
@@ -3812,9 +3833,9 @@ async function checkDbHealth(force){
     setConnBanner('ok');
   }catch(e){
     console.warn('Firestore 연결 확인 실패:', e);
-    if(e && e.code === 'permission-denied') setConnBanner('perm');
+    if(e && e.code === 'permission-denied') setConnBanner('perm', e);
     else{
-      setConnBanner(navigator.onLine ? 'error' : 'offline');
+      setConnBanner(navigator.onLine ? 'error' : 'offline', e);
       scheduleReconnect();
     }
   }finally{ cloud.healthBusy = false; }
@@ -3843,7 +3864,7 @@ function scheduleReconnect(immediate){
       return checkDbHealth(true);
     }).catch(e => {
       console.warn('Firestore 재연결 실패:', e);
-      setConnBanner(navigator.onLine ? 'error' : 'offline');
+      setConnBanner(navigator.onLine ? 'error' : 'offline', e);
       scheduleReconnect();
     });
   }, wait);
@@ -3966,27 +3987,31 @@ if(cloud.on){
     if(user){
       clearLoginError();
       renderAvatar();
-      /* 초기 동기화(사용자 문서 저장·초대 참여·마이그레이션)가 네트워크 문제로 멈춰도
-         화면 진입 자체는 막히지 않도록 타임아웃을 두고, 남은 작업은 백그라운드에서 계속함 */
+      /* 로그인할 때마다 서버 원본을 먼저 확인한다. 이전 버전은 각 기기의 localStorage를
+         서버 데이터와 병합해, 아이폰과 데스크톱이 서로 다른 내용을 계속 유지할 수 있었다.
+         이제 서버에 데이터가 있으면 서버를 기준으로 이 기기를 맞추고, 서버가 정말 비어 있을 때만
+         최초 1회 로컬 데이터를 올린다. */
+      resetCloudAuthority(user.uid);
       const initSync = (async () => {
         try{
           await fbDb.collection('users').doc(user.uid).set(
             {email:user.email, name:user.displayName||user.email, photo:user.photoURL||''}, {merge:true});
+        }catch(e){ console.warn('사용자 프로필 저장 실패:', e); }
+        try{
           const joinUid = new URLSearchParams(location.search).get('join');
           if(joinUid && joinUid !== user.uid){
             await handleJoin(joinUid);
             history.replaceState({}, '', location.pathname);
           }
-          await firstSyncMigrate();
-        }catch(e){ console.warn('초기 동기화 실패, 로컬 데이터로 계속:', e); }
+        }catch(e){ console.warn('공유 참여 처리 실패:', e); }
+        try{
+          await bootstrapCloudState(user.uid, true);
+        }catch(e){
+          console.warn('초기 서버 동기화 실패, 로컬 화면을 유지하고 재연결 대기:', e);
+          setConnBanner(navigator.onLine ? 'error' : 'offline', e);
+        }
       })();
-      /* 지연되어도 배너는 띄우지 않는다: 실제 연결 상태는 바로 이어지는 startCloudListeners()의
-         리스너가 붙으면서 다시 정확히 반영되므로, 여기서 띄우면 진짜 문제가 아닌데도
-         로그인 때마다 "연결 끊김" 배너가 잠깐 스쳐 지나가는 노이즈가 된다. */
-      await Promise.race([
-        initSync,
-        new Promise(resolve => setTimeout(resolve, 6000))
-      ]);
+      await Promise.race([initSync, new Promise(resolve => setTimeout(resolve, 7000))]);
       startCloudListeners();
       checkDbHealth(true);
       if(!authBypassed) goHome();   // 이미 오프라인으로 진입한 상태면 화면을 강제로 옮기지 않고 뒤에서 동기화만 이어감
@@ -3994,6 +4019,7 @@ if(cloud.on){
       renderShareUI();
     }else{
       stopCloudListeners();
+      resetCloudAuthority(null);
       setConnBanner('ok');
       cloud.viewingUid = null; cloud.viewingName = '';
       document.getElementById('viewingBanner').classList.remove('on');
@@ -4046,18 +4072,85 @@ function renderAvatar(){
   };
 }
 
-/* ── 최초 로그인: 클라우드가 비어 있으면 로컬 데이터 업로드 ── */
+/* ── 서버 원본 초기화: 기기별 localStorage가 서로 섞이지 않게 서버를 기준으로 맞춤 ── */
 const cleanJSON = v => JSON.parse(JSON.stringify(v));
-async function firstSyncMigrate(){
-  const snap = await mapsCol(cloud.me.uid).limit(1).get();
-  if(snap.empty && (state.maps.length || state.topics.length)){
-    const batch = fbDb.batch();
-    state.maps.forEach(m => batch.set(mapsCol(cloud.me.uid).doc(m.id), cleanJSON(m)));
-    batch.set(mapsCol(cloud.me.uid).doc('_meta'), {topics: cleanJSON(state.topics), updatedAt: state.topicsUpdatedAt||0, deleted: {}});
-    await batch.commit();
-    state.maps.forEach(m => cloud.lastPushed[m.id] = JSON.stringify(m));
-    cloud.lastTopics = JSON.stringify(state.topics);
+function localCloudOwner(){
+  try{ return localStorage.getItem(CLOUD_OWNER_KEY) || ''; }catch(e){ return ''; }
+}
+function markLocalCloudOwner(uid0){
+  if(!uid0 || isShared()) return;
+  try{ localStorage.setItem(CLOUD_OWNER_KEY, uid0); }catch(e){}
+}
+function resetCloudAuthority(uid0){
+  cloud.synced = false;
+  cloud.authoritativeReady = false;
+  cloud.authoritativeUid = uid0 || null;
+  cloud.lastPushed = {};
+  cloud.lastTopics = '';
+  cloud.deleted = {};
+}
+function setCloudBaseline(part, uid0){
+  cloud.lastPushed = {};
+  (part.maps||[]).forEach(m => { cloud.lastPushed[m.id] = JSON.stringify(m); });
+  cloud.lastTopics = JSON.stringify(part.topics || []);
+  cloud.deleted = {...(part.deleted || {})};
+  cloud.authoritativeUid = uid0;
+  cloud.authoritativeReady = true;
+  cloud.synced = true;
+  cloud.lastServerSyncAt = Date.now();
+  cloud.lastHealthAt = Date.now();
+}
+function renderCloudState(){
+  if(curMapId && !curMap()){ goHome(); return; }
+  if(curMap()){
+    renderMap(); renderSelBar();
+    if(planActive()) renderPlan();
+  }else renderHome();
+  renderShareUI();
+}
+function replaceStateFromServer(part, uid0){
+  state = normalize({
+    theme: state.theme || 'system',
+    topics: cleanJSON(part.topics || []),
+    topicsUpdatedAt: part.topicsAt || 0,
+    maps: cleanJSON(part.maps || [])
+  });
+  setCloudBaseline(part, uid0);
+  initFingerprints();
+  if(!isShared()){ saveLocalOnly(); markLocalCloudOwner(uid0); }
+  setConnBanner('ok');
+  renderCloudState();
+}
+async function uploadCurrentState(uid0){
+  const batch = fbDb.batch();
+  state.maps.forEach(m => batch.set(mapsCol(uid0).doc(m.id), cleanJSON(m)));
+  batch.set(mapsCol(uid0).doc('_meta'), {
+    topics:cleanJSON(state.topics), updatedAt:state.topicsUpdatedAt||0, deleted:{}
+  });
+  await batch.commit();
+  setCloudBaseline({maps:cleanJSON(state.maps), topics:cleanJSON(state.topics),
+    topicsAt:state.topicsUpdatedAt||0, deleted:{}, hasData:true}, uid0);
+  if(!isShared()) markLocalCloudOwner(uid0);
+  setConnBanner('ok');
+  renderShareUI();
+}
+async function bootstrapCloudState(uid0, allowLocalMigration){
+  const snap = await mapsCol(uid0).get({source:'server'});
+  const part = cloudPartFromSnapshot(snap);
+  if(part.hasData){
+    /* 서버에 한 건이라도 있으면 서버가 정답이다. 오래된 기기 로컬 데이터는 병합하지 않는다. */
+    replaceStateFromServer(part, uid0);
+  }else{
+    const owner = localCloudOwner();
+    const mayMigrate = allowLocalMigration && !isShared() && (!owner || owner === uid0)
+      && (state.maps.length || state.topics.length);
+    if(mayMigrate){
+      await uploadCurrentState(uid0);
+    }else{
+      replaceStateFromServer(part, uid0);
+    }
   }
+  return part;
 }
 
 /* ── 변경 로그: 공유받은 사람이 수정하면 mindmaps/_log 문서에 요약을 기록 ── */
@@ -4208,8 +4301,8 @@ function pushDiff(){
       else cloud.lastPushed[id] = prevBase[id];
     });
     if(prevTopics !== null) cloud.lastTopics = prevTopics;
-    if(e.code === 'permission-denied'){ setConnBanner('perm'); return; }
-    setConnBanner('error');
+    if(e.code === 'permission-denied'){ setConnBanner('perm', e); return; }
+    setConnBanner('error', e);
     scheduleReconnect();   // 쓰기 실패가 연결 문제였다면 배너가 계속 떠 있지 않도록 재연결을 트리거
   });  // 오프라인이면 SDK가 큐에 쌓아뒀다가 재연결 시 전송
 }
@@ -4218,9 +4311,10 @@ function pushDiff(){
 let pendingRemote = null;
 function cloudPartFromSnapshot(snap){
   const maps = [];
-  let topics = null, topicsAt = 0, deleted = {};
+  let topics = null, topicsAt = 0, deleted = {}, hasData = false;
   snap.forEach(doc => {
     if(doc.id === '_meta'){
+      hasData = true;
       const d = doc.data()||{};
       topics = d.topics || [];
       topicsAt = d.updatedAt || 0;
@@ -4228,34 +4322,31 @@ function cloudPartFromSnapshot(snap){
     }else if(doc.id === '_log'){
       cloud.logEntries = (doc.data()||{}).entries || [];
     }else{
+      hasData = true;
       const m = doc.data() || {};
-      if(!m.id) m.id = doc.id;   // 예전 문서에 id 필드가 빠진 경우에도 목록에서 사라지지 않게 복구
+      if(!m.id) m.id = doc.id;
       maps.push(m);
     }
   });
-  return {maps, topics, topicsAt, deleted};
+  return {maps, topics:topics || [], topicsAt, deleted, hasData};
 }
 async function loadCloudOnce(uid0){
   const snap = await mapsCol(uid0).get({source:'server'});
   const part = cloudPartFromSnapshot(snap);
-  cloud.synced = true;
   cloud.lastSnapAt = Date.now();
-  cloud.lastServerSyncAt = Date.now();
-  cloud.lastHealthAt = Date.now();
-  setConnBanner('ok');
-  renderShareUI();
-  applyRemote(part);
+  replaceStateFromServer(part, uid0);
   return part.maps.length;
 }
 function startCloudListeners(){
   stopCloudListeners();
   const uid0 = workUid(); if(!uid0) return;
+  cloud.synced = cloud.authoritativeReady && cloud.authoritativeUid === uid0;
   startHealthMonitor();
   cloud.lastSnapAt = Date.now();
   const onListenErr = label => e => {
     console.warn(`Firestore 리스너 오류(${label}):`, e);
-    if(e.code === 'permission-denied'){ setConnBanner('perm'); return; }  // 재시도해도 소용없는 오류
-    setConnBanner('error');
+    if(e.code === 'permission-denied'){ setConnBanner('perm', e); return; }  // 재시도해도 소용없는 오류
+    setConnBanner('error', e);
     scheduleReconnect();
   };
   cloud.unsubs.push(mapsCol(uid0).onSnapshot(snap => {
@@ -4271,11 +4362,25 @@ function startCloudListeners(){
       return;
     }
     cloud.reconnAttempts = 0; cloud.lastHealthAt = Date.now(); setConnBanner('ok');
-    cloud.synced = true;                  // 첫 서버 데이터 수신 완료 → 이제부터 push 허용
-    cloud.lastServerSyncAt = Date.now();
+    if(!(cloud.authoritativeReady && cloud.authoritativeUid === uid0)){
+      /* 초기 서버 스냅샷은 병합하지 않고 서버를 기준으로 맞춘다. 서버가 비어 있고
+         로그인 전 로컬 데이터가 있는 경우에만 최초 업로드를 허용한다. */
+      const owner = localCloudOwner();
+      const mayMigrate = !isShared() && !part.hasData && (!owner || owner === uid0)
+        && (state.maps.length || state.topics.length);
+      if(mayMigrate){
+        setCloudBaseline(part, uid0);
+        markLocalCloudOwner(uid0);
+        scheduleCloudPush();
+        renderShareUI();
+      }else replaceStateFromServer(part, uid0);
+    }else{
+      cloud.synced = true;
+      cloud.lastServerSyncAt = Date.now();
+      renderShareUI();
+      applyRemote(part);
+    }
     if(isShared()) document.getElementById('viewingLabel').textContent = `${cloud.viewingName}님의 마인드맵 편집 중`;
-    renderShareUI();
-    applyRemote(part);
   }, onListenErr('maps')));
   cloud.unsubs.push(fbDb.collection('users').doc(cloud.me.uid).collection('mmSharedWith').onSnapshot(snap => {
     cloud.sharedWith = []; snap.forEach(d => cloud.sharedWith.push({...d.data(), docId:d.id}));
@@ -4287,8 +4392,7 @@ function startCloudListeners(){
   }, onListenErr('shared')));
 }
 function stopCloudListeners(){
-  cloud.unsubs.forEach(u => u()); cloud.unsubs = [];
-  cloud.synced = false;   // 리스너가 다시 붙어 첫 서버 스냅샷을 받을 때까지 push 보류
+  cloud.unsubs.forEach(u => { try{ u(); }catch(e){} }); cloud.unsubs = [];
   stopHealthMonitor();
   clearTimeout(reconnT); reconnT = null;
 }
@@ -4385,10 +4489,10 @@ async function handleJoin(ownerUid){
   alert(`${oName}님의 마인드맵에 참여했어요!\n설정 → 공유받은 마인드맵에서 들어갈 수 있어요.`);
 }
 async function enterShared(ownerUid, ownerName){
-  clearTimeout(cloud.pushT);
+  clearTimeout(cloud.pushT); cloud.pushT = null;
   cloud.viewingUid = ownerUid;
   cloud.viewingName = ownerName || '';
-  cloud.lastPushed = {}; cloud.lastTopics = ''; cloud.deleted = {};
+  resetCloudAuthority(ownerUid);
   state.maps = []; state.topics = []; state.topicsUpdatedAt = 0;
   initFingerprints();
   document.getElementById('viewingLabel').textContent = `${cloud.viewingName}님의 마인드맵 불러오는 중…`;
@@ -4401,27 +4505,81 @@ async function enterShared(ownerUid, ownerName){
   }catch(e){
     console.warn('공유 마인드맵 즉시 불러오기 실패:', e);
     document.getElementById('viewingLabel').textContent = `${cloud.viewingName}님의 마인드맵 · 재연결 중`;
-    if(e && e.code === 'permission-denied') setConnBanner('perm');
+    if(e && e.code === 'permission-denied') setConnBanner('perm', e);
     else{
-      setConnBanner(navigator.onLine ? 'error' : 'offline');
+      setConnBanner(navigator.onLine ? 'error' : 'offline', e);
       scheduleReconnect();
     }
   }
 }
-function leaveShared(){
-  clearTimeout(cloud.pushT);
+async function leaveShared(){
+  clearTimeout(cloud.pushT); cloud.pushT = null;
   cloud.viewingUid = null; cloud.viewingName = '';
-  cloud.lastPushed = {}; cloud.lastTopics = ''; cloud.deleted = {};
+  resetCloudAuthority(cloud.me && cloud.me.uid);
   document.getElementById('viewingBanner').classList.remove('on');
   state = normalize(load() || {topics:[], maps:[]});
   initFingerprints();
-  startCloudListeners();
   goHome();
+  try{ await bootstrapCloudState(cloud.me.uid, true); }
+  catch(e){
+    console.warn('내 마인드맵 서버 복원 실패:', e);
+    setConnBanner(navigator.onLine ? 'error' : 'offline', e);
+  }
+  startCloudListeners();
 }
 function copyShareLink(){
   const link = `${location.origin}${location.pathname}?join=${cloud.me.uid}`;
   navigator.clipboard.writeText(link).then(() => alert('링크를 복사했어요!'))
     .catch(() => prompt('아래 링크를 복사하세요', link));
+}
+async function reloadFromServer(){
+  const uid0 = workUid(); if(!uid0) return;
+  if(!confirm('Firebase 서버에 저장된 데이터로 이 기기의 화면을 다시 맞출까요?\n이 기기에만 남아 있는 미전송 변경은 사라질 수 있습니다.')) return;
+  clearTimeout(cloud.pushT); cloud.pushT = null;
+  try{
+    const snap = await mapsCol(uid0).get({source:'server'});
+    replaceStateFromServer(cloudPartFromSnapshot(snap), uid0);
+    alert('서버 데이터로 다시 불러왔습니다.');
+  }catch(e){
+    console.warn('서버 다시 불러오기 실패:', e);
+    setConnBanner(navigator.onLine ? 'error' : 'offline', e);
+    alert(`서버에서 불러오지 못했습니다.${errorCodeOf(e) ? '\n오류: ' + errorCodeOf(e) : ''}`);
+  }
+}
+async function commitWriteOps(ops){
+  for(let i=0; i<ops.length; i+=400){
+    const batch = fbDb.batch();
+    ops.slice(i, i+400).forEach(op => {
+      if(op.type === 'delete') batch.delete(op.ref);
+      else batch.set(op.ref, op.data);
+    });
+    await batch.commit();
+  }
+}
+async function overwriteServerFromThisDevice(){
+  const uid0 = workUid(); if(!uid0) return;
+  const target = isShared() ? `${cloud.viewingName || '공유자'}님의 공유 데이터` : '내 서버 데이터';
+  if(!confirm(`현재 이 기기에 보이는 내용으로 ${target}를 덮어쓸까요?\n다른 기기에만 있는 마인드맵은 서버에서 삭제됩니다.`)) return;
+  clearTimeout(cloud.pushT); cloud.pushT = null;
+  try{
+    const snap = await mapsCol(uid0).get({source:'server'});
+    const ops = [];
+    snap.forEach(doc => { if(doc.id !== '_log') ops.push({type:'delete', ref:doc.ref}); });
+    state.maps.forEach(m => ops.push({type:'set', ref:mapsCol(uid0).doc(m.id), data:cleanJSON(m)}));
+    ops.push({type:'set', ref:mapsCol(uid0).doc('_meta'), data:{
+      topics:cleanJSON(state.topics), updatedAt:state.topicsUpdatedAt||Date.now(), deleted:{}
+    }});
+    await commitWriteOps(ops);
+    setCloudBaseline({maps:cleanJSON(state.maps), topics:cleanJSON(state.topics),
+      topicsAt:state.topicsUpdatedAt||0, deleted:{}, hasData:true}, uid0);
+    if(!isShared()) markLocalCloudOwner(uid0);
+    setConnBanner('ok'); renderShareUI();
+    alert('이 기기의 데이터를 Firebase 서버에 저장했습니다.\n다른 기기에서 앱을 다시 열거나 서버 데이터 다시 불러오기를 누르세요.');
+  }catch(e){
+    console.warn('서버 덮어쓰기 실패:', e);
+    setConnBanner(navigator.onLine ? 'error' : 'offline', e);
+    alert(`서버에 저장하지 못했습니다.${errorCodeOf(e) ? '\n오류: ' + errorCodeOf(e) : ''}`);
+  }
 }
 function renderShareUI(){
   const on = cloud.on && !!cloud.me;
@@ -4435,11 +4593,11 @@ function renderShareUI(){
   if(!on) return;
   document.getElementById('myAccountRow').innerHTML = `
     <div class="su-av">${cloud.me.photoURL ? `<img src="${cloud.me.photoURL}">` : esc((cloud.me.displayName||'?')[0].toUpperCase())}</div>
-    <div class="su-info"><div class="su-name">${esc(cloud.me.displayName||'')}</div><div class="su-email">${esc(cloud.me.email||'')}</div></div>`;
+    <div class="su-info"><div class="su-name">${esc(cloud.me.displayName||'')}</div><div class="su-email">${esc(cloud.me.email||'')} · 계정 ID ${esc(cloud.me.uid.slice(0,8))}</div></div>`;
   const ss = document.getElementById('syncStatus');
-  if(ss) ss.textContent = cloud.lastServerSyncAt
-    ? `☁️ 서버와 연결됨 · 마지막 동기화 ${fmtLogTime(cloud.lastServerSyncAt)}`
-    : '⏳ 서버와 첫 동기화를 기다리는 중… (이 상태에선 이 기기의 변경이 아직 업로드되지 않아요)';
+  if(ss) ss.textContent = cloud.authoritativeReady && cloud.lastServerSyncAt
+    ? `☁️ Firebase 서버와 동기화됨 · ${fmtLogTime(cloud.lastServerSyncAt)} · ${firebaseConfig.projectId}`
+    : `⏳ Firebase 서버 원본을 확인하는 중…${cloud.lastError ? ' · ' + cloud.lastError : ''}`;
   document.getElementById('shareLinkText').textContent = `${location.origin}${location.pathname}?join=${cloud.me.uid}`;
   const lg = document.getElementById('logList');
   lg.innerHTML = (cloud.logEntries||[]).length ? cloud.logEntries.map(e => `
@@ -4473,7 +4631,7 @@ function renderShareUI(){
 
 /* ════════════════ PWA 서비스워커 ════════════════ */
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js?v=43', {updateViaCache:'none'}).then(r => r.update()).catch(() => {});
 }
 
 /* ════════════════ 시작 ════════════════ */
