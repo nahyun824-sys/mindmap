@@ -197,7 +197,7 @@
   .map-sel-bar .msb-count{flex:1; font-size:13px; font-weight:600; color:var(--body);}
   .map-sel-bar button{padding:9px 14px; border-radius:10px; font-size:12.5px; font-weight:600; flex:0 0 auto;}
   .map-sel-bar button.primary{background:var(--primary); color:var(--on-primary);}
-  .map-sel-bar button.primary:disabled{opacity:.45;}
+  .map-sel-bar button:disabled{opacity:.45;}
   .map-sel-bar button.plain{background:var(--line); color:var(--body);}
 
   /* ═══ 마인드맵 모아보기 ═══ */
@@ -677,6 +677,7 @@
   <div class="map-sel-bar" id="mapSelBar">
     <span class="msb-count" id="msbCount"></span>
     <button class="plain" onclick="toggleMapSelectMode()">취소</button>
+    <button class="plain" id="btnExcelSel" onclick="exportSelectedExcel()">📊 엑셀</button>
     <button class="primary" id="btnCompareGo" onclick="openCompareView()">모아보기</button>
   </div>
   <nav class="bottom-nav">
@@ -1181,13 +1182,10 @@ function nodeLabel(map, n){
 function nodeNote(n){
   return String((n && n.note) || '').replace(/\s+/g, ' ').trim();
 }
-function nodeNoteLabel(n){
-  const s = nodeNote(n);
-  return s.length > 42 ? s.slice(0, 41) + '…' : s;
-}
 function nodeExtraHeight(map, n){
   let h = 0;
-  if(nodeNote(n)) h += 15;
+  const lines = wrapNoteLines(n);
+  if(lines.length) h += lines.length * 13;
   if(nodeCostTotal(map, n.id) > 0) h += 14;
   return h;
 }
@@ -1448,7 +1446,12 @@ function renderMapSelBar(){
   if(!mapSelectMode || !state.maps.length){ bar.classList.remove('show'); return; }
   document.getElementById('msbCount').textContent = selectedMapIds.size ? `${selectedMapIds.size}개 선택됨` : '마인드맵을 선택하세요';
   document.getElementById('btnCompareGo').disabled = selectedMapIds.size < 1;
+  document.getElementById('btnExcelSel').disabled = selectedMapIds.size < 1;
   bar.classList.add('show');
+}
+function exportSelectedExcel(){
+  if(!selectedMapIds.size) return;
+  exportExcel([...selectedMapIds]);
 }
 function openCompareView(){
   const maps = state.maps.filter(m => selectedMapIds.has(m.id));
@@ -1636,14 +1639,13 @@ function renderMiniMap(map, svgEl){
     text.textContent = label;
     ng.appendChild(text);
     let belowY = h/2 + 12;
-    const note = nodeNoteLabel(n);
-    if(note){
+    wrapNoteLines(n).forEach(line => {
       const nt = document.createElementNS(SVGNS,'text');
       nt.setAttribute('x', 0); nt.setAttribute('y', belowY);
       nt.setAttribute('text-anchor','middle'); nt.setAttribute('font-size', 9.5);
       nt.setAttribute('font-weight', 500); nt.setAttribute('fill', C.sub);
-      nt.textContent = note; ng.appendChild(nt); belowY += 14;
-    }
+      nt.textContent = line; ng.appendChild(nt); belowY += 13;
+    });
     const total = nodeCostTotal(map, n.id);
     if(total > 0){
       const ct = document.createElementNS(SVGNS,'text');
@@ -1895,12 +1897,47 @@ const world = document.getElementById('world');
 const wrap = document.getElementById('canvasWrap');
 const mctx = document.createElement('canvas').getContext('2d');
 
+/* 노드 아래 메모의 "적정 크기": 이 너비를 넘는 글자는 다음 줄로 줄바꿈하고, 줄 수도 제한한다 */
+const NOTE_MAX_W = 150;
+const NOTE_MAX_LINES = 4;
+const NOTE_FONT = "500 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+function wrapText(text, maxWidth, font){
+  mctx.font = font;
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  words.forEach(w => {
+    while(mctx.measureText(w).width > maxWidth && w.length > 1){
+      let i = 1;
+      while(i < w.length && mctx.measureText(w.slice(0, i+1)).width <= maxWidth) i++;
+      lines.push(w.slice(0, i));
+      w = w.slice(i);
+    }
+    const test = cur ? cur + ' ' + w : w;
+    if(cur && mctx.measureText(test).width > maxWidth){ lines.push(cur); cur = w; }
+    else cur = test;
+  });
+  if(cur) lines.push(cur);
+  return lines;
+}
+function wrapNoteLines(n){
+  const full = nodeNote(n);
+  if(!full) return [];
+  let lines = wrapText(full, NOTE_MAX_W, NOTE_FONT);
+  if(lines.length > NOTE_MAX_LINES){
+    lines = lines.slice(0, NOTE_MAX_LINES);
+    let last = lines[NOTE_MAX_LINES-1];
+    mctx.font = NOTE_FONT;
+    while(last.length > 1 && mctx.measureText(last + '…').width > NOTE_MAX_W) last = last.slice(0, -1);
+    lines[NOTE_MAX_LINES-1] = last + '…';
+  }
+  return lines;
+}
 function nodeSize(map, n){
   const isRoot = n.type === 'root';
   mctx.font = (isRoot ? '700 15px ' : '600 13.5px ') + "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const tw = mctx.measureText(nodeLabel(map, n)).width;
-  mctx.font = "500 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  const nw = nodeNote(n) ? mctx.measureText(nodeNoteLabel(n)).width : 0;
+  const nw = nodeNote(n) ? NOTE_MAX_W : 0;
   const pad = isRoot ? 36 : 48;
   const w = Math.max(isRoot ? 110 : 78, tw + pad, nw + 24);
   return {w: Math.min(w, 360), h: isRoot ? 48 : 40};
@@ -2133,8 +2170,7 @@ function renderMap(){
     g.appendChild(text);
 
     let belowY = h/2 + 13;
-    const note = nodeNoteLabel(n);
-    if(note){
+    wrapNoteLines(n).forEach(line => {
       const noteText = document.createElementNS(SVGNS,'text');
       noteText.setAttribute('x', 0);
       noteText.setAttribute('y', belowY);
@@ -2142,10 +2178,10 @@ function renderMap(){
       noteText.setAttribute('font-size', 10.5);
       noteText.setAttribute('font-weight', 500);
       noteText.setAttribute('fill', C.sub);
-      noteText.textContent = note;
+      noteText.textContent = line;
       g.appendChild(noteText);
-      belowY += 15;
-    }
+      belowY += 13;
+    });
     const costTotal = nodeCostTotal(map, n.id);
     if(costTotal > 0){
       const costText = document.createElementNS(SVGNS,'text');
@@ -3441,31 +3477,46 @@ function exportData(){
   a.click();
   URL.revokeObjectURL(a.href);
 }
-function exportExcel(){
+/* mapIds를 주면 그 마인드맵들만, 안 주면 전체를 대상으로 마인드맵 하나당 시트 하나씩 만든다 */
+function exportExcel(mapIds){
   if(!window.XLSX){
     alert('엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해주세요.');
     return;
   }
+  const targets = mapIds && mapIds.length ? state.maps.filter(m => mapIds.includes(m.id)) : state.maps;
+  if(!targets.length){ alert('내보낼 마인드맵이 없어요.'); return; }
   const wb = XLSX.utils.book_new();
-  const summary = [['마인드맵','주제','종류','통화','노드 수','직접 입력 금액 합계','일정 수','일정 예상 경비','수정 시각']];
-  const nodes = [['마인드맵','주제','단계','경로','노드 내용','메모','직접 입력 금액','하위 포함 금액','금액 분류','부모 노드','X','Y']];
-  const plans = [['마인드맵','목적지','날짜','Day','단계','상위 일정','시간','일정','분류','비용','메모']];
-  const links = [['마인드맵','연결 종류','시작 노드','끝 노드','설명']];
-
-  const orderedMaps = [...state.maps].sort((a,b) =>
+  const orderedMaps = [...targets].sort((a,b) =>
     topicPath(a.topicId||'').localeCompare(topicPath(b.topicId||''), 'ko') || (a.ord||0)-(b.ord||0));
+
+  const usedSheetNames = new Set();
+  const sheetNameFor = raw => {
+    const base = String(raw||'마인드맵').replace(/[\\\/\?\*\[\]:]/g, ' ').trim().slice(0,28) || '마인드맵';
+    let name = base.slice(0,31), i = 2;
+    while(usedSheetNames.has(name)){ name = `${base.slice(0,28)}(${i++})`; }
+    usedSheetNames.add(name);
+    return name;
+  };
+
   orderedMaps.forEach(map => {
     const topic = map.topicId ? topicPath(map.topicId) : '분류 없음';
     const directTotal = Object.values(map.nodes||{}).reduce((s,n) => s + (Number(n.cost)||0), 0);
     let itemCount = 0;
     const countItems = arr => (arr||[]).forEach(it => { itemCount++; countItems(it.subs); });
     ((map.plan && map.plan.days)||[]).forEach(d => countItems(d.items));
-    summary.push([
-      map.name, topic, map.kind === 'trip' ? '여행계획' : '일반', curOf(map),
-      Object.keys(map.nodes||{}).length, directTotal, itemCount, planTotal(map),
-      map.updatedAt ? new Date(map.updatedAt) : ''
-    ]);
 
+    const rows = [];
+    rows.push(['마인드맵', map.name]);
+    rows.push(['주제', topic]);
+    rows.push(['종류', map.kind === 'trip' ? '여행계획' : '일반']);
+    rows.push(['통화', curOf(map)]);
+    rows.push(['노드 수', Object.keys(map.nodes||{}).length, '직접 입력 금액 합계', directTotal]);
+    if(map.kind === 'trip') rows.push(['일정 수', itemCount, '일정 예상 경비', planTotal(map)]);
+    rows.push(['수정 시각', map.updatedAt ? new Date(map.updatedAt) : '']);
+    rows.push([]);
+
+    rows.push(['노드']);
+    rows.push(['단계','경로','노드 내용','메모','직접 입력 금액','하위 포함 금액','금액 분류','부모 노드','X','Y']);
     const pathOf = n => {
       const parts = []; let p = n, guard = 0;
       while(p && guard++ < 100){ parts.unshift(p.text||''); p = map.nodes[p.parentId]; }
@@ -3473,41 +3524,51 @@ function exportExcel(){
     };
     Object.values(map.nodes||{}).sort((a,b) => nodeDepth(map,a)-nodeDepth(map,b) || (a.ord||0)-(b.ord||0)).forEach(n => {
       const parent = n.parentId && map.nodes[n.parentId];
-      nodes.push([
-        map.name, topic, nodeDepth(map,n), pathOf(n), n.text||'', n.note||'', Number(n.cost)||0,
+      rows.push([
+        nodeDepth(map,n), pathOf(n), n.text||'', n.note||'', Number(n.cost)||0,
         nodeCostTotal(map,n.id), (COST_CATS[n.costCat]||{}).label || '', parent ? parent.text||'' : '',
         Number(n.x)||0, Number(n.y)||0
       ]);
-      if(parent) links.push([map.name, '부모-자식', parent.text||'', n.text||'', n.edgeLabel||'']);
+    });
+
+    if(map.kind === 'trip'){
+      rows.push([]);
+      rows.push(['일정']);
+      rows.push(['목적지','날짜','Day','단계','상위 일정','시간','일정','분류','비용','메모']);
+      ((map.plan && map.plan.days)||[]).forEach((day, dayIdx) => {
+        const walkItems = (arr, depth, parentText) => (arr||[]).forEach(it => {
+          rows.push([
+            (map.plan && map.plan.dest)||'', day.date||'', dayIdx+1, depth,
+            parentText||'', it.time||'', it.text||'', (CATS[it.cat]||CATS.etc).label,
+            Number(it.cost)||0, it.memo||''
+          ]);
+          walkItems(it.subs, depth+1, it.text||'');
+        });
+        walkItems(day.items, 0, '');
+      });
+    }
+
+    const linkRows = [];
+    Object.values(map.nodes||{}).forEach(n => {
+      const parent = n.parentId && map.nodes[n.parentId];
+      if(parent) linkRows.push(['부모-자식', parent.text||'', n.text||'', n.edgeLabel||'']);
     });
     (map.links||[]).forEach(l => {
       const a = map.nodes[l.from], b = map.nodes[l.to];
-      if(a && b) links.push([map.name, '교차 연결', a.text||'', b.text||'', l.label||'']);
+      if(a && b) linkRows.push(['교차 연결', a.text||'', b.text||'', l.label||'']);
     });
+    if(linkRows.length){
+      rows.push([]);
+      rows.push(['연결선']);
+      rows.push(['연결 종류','시작 노드','끝 노드','설명']);
+      rows.push(...linkRows);
+    }
 
-    ((map.plan && map.plan.days)||[]).forEach((day, dayIdx) => {
-      const walkItems = (arr, depth, parentText) => (arr||[]).forEach(it => {
-        plans.push([
-          map.name, (map.plan && map.plan.dest)||'', day.date||'', dayIdx+1, depth,
-          parentText||'', it.time||'', it.text||'', (CATS[it.cat]||CATS.etc).label,
-          Number(it.cost)||0, it.memo||''
-        ]);
-        walkItems(it.subs, depth+1, it.text||'');
-      });
-      walkItems(day.items, 0, '');
-    });
+    const ws = XLSX.utils.aoa_to_sheet(rows, {cellDates:true});
+    ws['!cols'] = [16,28,20,26,14,14,12,16,10,10].map(w => ({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, sheetNameFor(map.name));
   });
 
-  const addSheet = (name, rows, widths) => {
-    const ws = XLSX.utils.aoa_to_sheet(rows, {cellDates:true});
-    ws['!cols'] = widths.map(w => ({wch:w}));
-    ws['!autofilter'] = {ref:XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:Math.max(0,rows.length-1),c:rows[0].length-1}})};
-    XLSX.utils.book_append_sheet(wb, ws, name);
-  };
-  addSheet('마인드맵 요약', summary, [26,24,12,10,10,18,10,18,20]);
-  addSheet('노드', nodes, [24,20,8,48,28,40,16,16,14,24,10,10]);
-  addSheet('일정', plans, [24,18,12,8,8,24,9,28,12,14,40]);
-  addSheet('연결선', links, [24,12,28,28,32]);
   const prefix = isShared() && cloud.viewingName ? `${cloud.viewingName}-마인드맵` : 'mindtrip';
   XLSX.writeFile(wb, `${prefix}-${toYMD(new Date())}.xlsx`, {compression:true});
 }

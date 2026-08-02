@@ -1,4 +1,4 @@
-const CACHE = 'mindtrip-v43';
+const CACHE = 'mindtrip-v44';
 const ASSETS = [
   './',
   './index.html',
