@@ -265,15 +265,7 @@
     box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;
   }
   .zoom-ctl button:active{background:var(--field);}
-  /* 노드 아래 메모 보이기/숨기기 토글 (캔버스 우측 상단, 확대 버튼 왼쪽) */
-  .note-toggle{
-    position:absolute; top:12px; right:56px; z-index:5; height:36px; padding:0 12px;
-    display:flex; align-items:center; gap:5px; border-radius:10px;
-    background:var(--panel); color:var(--sub); box-shadow:var(--shadow);
-    font-size:12.5px; font-weight:700; white-space:nowrap;
-  }
-  .note-toggle.on{background:var(--primary); color:var(--on-primary);}
-  .note-toggle:active{transform:scale(.97);}
+  .nav-btn.off{color:var(--sub);}
   /* 드래그 선택(마퀴) 상자 — 화면 좌표로 캔버스 위에 겹쳐 그림 */
   .marquee-box{
     position:absolute; display:none; z-index:6; pointer-events:none;
@@ -723,6 +715,7 @@
     <button class="nav-btn" id="btnBack" onclick="goHome()">‹</button>
     <div class="tb-title" id="tbTitle"></div>
     <button class="nav-btn" id="btnMarquee" onclick="toggleMarqueeMode()" title="드래그로 여러 노드 선택"></button>
+    <button class="nav-btn" id="btnNoteToggle" onclick="toggleNotes()"></button>
     <button class="nav-btn" id="btnAddFree" onclick="addFreeNode()" title="독립 노드 추가"></button>
     <button class="nav-btn" id="btnGroups" onclick="openGroupSheet()" title="그룹 관리"></button>
     <button class="nav-btn" id="btnLayout" onclick="autoLayout()" title="자동 정돈"></button>
@@ -733,7 +726,6 @@
     <div class="mm-hint" id="mmHint">탭: 선택 · 두 번 탭: 편집 · 두 손가락: 확대/축소</div>
     <div class="budget-badge" id="budgetBadge" onclick="toggleBudgetDetail()"><span class="bb-ic">💰</span><span id="budgetTotalText"></span></div>
     <div class="budget-detail" id="budgetDetail"></div>
-    <button class="note-toggle" id="btnNoteToggle" onclick="toggleNotes()" title="노드 아래 메모 보이기/숨기기"></button>
     <div class="zoom-ctl">
       <button id="btnZoomIn" onclick="zoomBy(1.25)"></button>
       <button id="btnZoomFit" onclick="zoomFit()"></button>
@@ -922,6 +914,8 @@ const I = {
   star:'<path d="m12 3.6 2.6 5.2 5.8.9-4.2 4.1 1 5.7-5.2-2.7-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z"/>',
   grip:'<circle cx="8" cy="6" r="1.4" fill="currentColor"/><circle cx="16" cy="6" r="1.4" fill="currentColor"/><circle cx="8" cy="12" r="1.4" fill="currentColor"/><circle cx="16" cy="12" r="1.4" fill="currentColor"/><circle cx="8" cy="18" r="1.4" fill="currentColor"/><circle cx="16" cy="18" r="1.4" fill="currentColor"/>',
   marquee:'<rect x="3.5" y="3.5" width="17" height="17" rx="2.5" stroke-dasharray="3.5 3"/><circle cx="9" cy="9.5" r="1.5" fill="currentColor"/><circle cx="15" cy="14.5" r="1.5" fill="currentColor"/>',
+  note:'<path d="M6.5 3.5h8l4 4v13h-12z"/><path d="M14.5 3.5v4h4M9.5 12h5M9.5 15.5h5"/>',
+  noteOff:'<path d="M6.5 3.5h8l4 4v13h-12z"/><path d="M14.5 3.5v4h4"/><path d="M3.5 3.5l17 17"/>',
   move:'<path d="M12 3v18M3 12h18"/><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
 };
 const ic = (name, size=20, sw=1.8) =>
@@ -1957,8 +1951,9 @@ let showNotes = true;
 try{ showNotes = localStorage.getItem(NOTES_KEY) !== '0'; }catch(x){}
 function renderNoteToggle(){
   const b = document.getElementById('btnNoteToggle'); if(!b) return;
-  b.classList.toggle('on', showNotes);
-  b.textContent = showNotes ? '📝 메모 ON' : '📝 메모 OFF';
+  b.classList.toggle('off', !showNotes);
+  b.innerHTML = ic(showNotes ? 'note' : 'noteOff', 17);
+  b.title = showNotes ? '노드 아래 메모 숨기기' : '노드 아래 메모 보이기';
 }
 function toggleNotes(){
   showNotes = !showNotes;
