@@ -1184,7 +1184,7 @@ function nodeNote(n){
 }
 function nodeExtraHeight(map, n){
   let h = 0;
-  const lines = wrapNoteLines(n);
+  const lines = wrapNoteLines(map, n);
   if(lines.length) h += lines.length * 13;
   if(nodeCostTotal(map, n.id) > 0) h += 14;
   return h;
@@ -1639,7 +1639,7 @@ function renderMiniMap(map, svgEl){
     text.textContent = label;
     ng.appendChild(text);
     let belowY = h/2 + 12;
-    wrapNoteLines(n).forEach(line => {
+    wrapNoteLines(map, n).forEach(line => {
       const nt = document.createElementNS(SVGNS,'text');
       nt.setAttribute('x', 0); nt.setAttribute('y', belowY);
       nt.setAttribute('text-anchor','middle'); nt.setAttribute('font-size', 9.5);
@@ -1658,7 +1658,7 @@ function renderMiniMap(map, svgEl){
   });
   let minX=1/0, maxX=-1/0, minY=1/0, maxY=-1/0;
   ns.forEach(n => {
-    const {w,h} = nodeSize(map, n);
+    const {h} = nodeSize(map, n), w = nodeBoxW(map, n);
     minX = Math.min(minX, n.x-w/2); maxX = Math.max(maxX, n.x+w/2);
     minY = Math.min(minY, n.y-h/2); maxY = Math.max(maxY, n.y+h/2+nodeExtraHeight(map,n));
   });
@@ -1897,8 +1897,8 @@ const world = document.getElementById('world');
 const wrap = document.getElementById('canvasWrap');
 const mctx = document.createElement('canvas').getContext('2d');
 
-/* 노드 아래 메모의 "적정 크기": 이 너비를 넘는 글자는 다음 줄로 줄바꿈한다 (메모 전체를 표시) */
-const NOTE_MAX_W = 150;
+/* 노드 아래 메모는 노드 폭의 2.6배까지 가로로 보여주고, 넘는 글자는 다음 줄로 줄바꿈한다 (메모 전체를 표시) */
+const NOTE_W_RATIO = 2.6;
 const NOTE_FONT = "500 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 function wrapText(text, maxWidth, font){
   mctx.font = font;
@@ -1919,13 +1919,21 @@ function wrapText(text, maxWidth, font){
   if(cur) lines.push(cur);
   return lines;
 }
-function wrapNoteLines(n){
+function noteWidth(map, n){
+  return nodeNote(n) ? nodeSize(map, n).w * NOTE_W_RATIO : 0;
+}
+/* 메모까지 포함한 노드의 가로 폭 (화면 맞춤·내보내기 범위 계산용) */
+function nodeBoxW(map, n){
+  return Math.max(nodeSize(map, n).w, noteWidth(map, n));
+}
+function wrapNoteLines(map, n){
+  const maxW = noteWidth(map, n);
   const raw = String((n && n.note) || '').trim();
   if(!raw) return [];
   const lines = [];
   raw.split('\n').forEach(para => {
     const t = para.replace(/\s+/g, ' ').trim();
-    if(t) lines.push(...wrapText(t, NOTE_MAX_W, NOTE_FONT));
+    if(t) lines.push(...wrapText(t, maxW, NOTE_FONT));
   });
   return lines;
 }
@@ -1933,9 +1941,8 @@ function nodeSize(map, n){
   const isRoot = n.type === 'root';
   mctx.font = (isRoot ? '700 15px ' : '600 13.5px ') + "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const tw = mctx.measureText(nodeLabel(map, n)).width;
-  const nw = nodeNote(n) ? NOTE_MAX_W : 0;
   const pad = isRoot ? 36 : 48;
-  const w = Math.max(isRoot ? 110 : 78, tw + pad, nw + 24);
+  const w = Math.max(isRoot ? 110 : 78, tw + pad);
   return {w: Math.min(w, 360), h: isRoot ? 48 : 40};
 }
 function nodeDepth(map, n){
@@ -1947,7 +1954,7 @@ function subtreeBox(map, id, box){
   const b = box || {minX:1/0, maxX:-1/0, minY:1/0, maxY:-1/0};
   const walk = nid => {
     const n = map.nodes[nid]; if(!n) return;
-    const {w,h} = nodeSize(map, n);
+    const {h} = nodeSize(map, n), w = nodeBoxW(map, n);
     b.minX=Math.min(b.minX,n.x-w/2); b.maxX=Math.max(b.maxX,n.x+w/2);
     b.minY=Math.min(b.minY,n.y-h/2); b.maxY=Math.max(b.maxY,n.y+h/2+nodeExtraHeight(map,n));
     Object.values(map.nodes).forEach(c => { if(c.parentId === nid) walk(c.id); });
@@ -2166,7 +2173,7 @@ function renderMap(){
     g.appendChild(text);
 
     let belowY = h/2 + 13;
-    wrapNoteLines(n).forEach(line => {
+    wrapNoteLines(map, n).forEach(line => {
       const noteText = document.createElementNS(SVGNS,'text');
       noteText.setAttribute('x', 0);
       noteText.setAttribute('y', belowY);
@@ -2242,7 +2249,7 @@ function zoomFit(){
   const r = wrap.getBoundingClientRect();
   let minX=1/0, maxX=-1/0, minY=1/0, maxY=-1/0;
   ns.forEach(n => {
-    const {w,h} = nodeSize(map,n);
+    const {h} = nodeSize(map,n), w = nodeBoxW(map,n);
     minX=Math.min(minX,n.x-w/2); maxX=Math.max(maxX,n.x+w/2);
     minY=Math.min(minY,n.y-h/2); maxY=Math.max(maxY,n.y+h/2+nodeExtraHeight(map,n));
   });
