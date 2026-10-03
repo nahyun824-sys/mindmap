@@ -265,6 +265,15 @@
     box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;
   }
   .zoom-ctl button:active{background:var(--field);}
+  /* 노드 아래 메모 보이기/숨기기 토글 (캔버스 우측 상단, 확대 버튼 왼쪽) */
+  .note-toggle{
+    position:absolute; top:12px; right:56px; z-index:5; height:36px; padding:0 12px;
+    display:flex; align-items:center; gap:5px; border-radius:10px;
+    background:var(--panel); color:var(--sub); box-shadow:var(--shadow);
+    font-size:12.5px; font-weight:700; white-space:nowrap;
+  }
+  .note-toggle.on{background:var(--primary); color:var(--on-primary);}
+  .note-toggle:active{transform:scale(.97);}
   /* 드래그 선택(마퀴) 상자 — 화면 좌표로 캔버스 위에 겹쳐 그림 */
   .marquee-box{
     position:absolute; display:none; z-index:6; pointer-events:none;
@@ -724,6 +733,7 @@
     <div class="mm-hint" id="mmHint">탭: 선택 · 두 번 탭: 편집 · 두 손가락: 확대/축소</div>
     <div class="budget-badge" id="budgetBadge" onclick="toggleBudgetDetail()"><span class="bb-ic">💰</span><span id="budgetTotalText"></span></div>
     <div class="budget-detail" id="budgetDetail"></div>
+    <button class="note-toggle" id="btnNoteToggle" onclick="toggleNotes()" title="노드 아래 메모 보이기/숨기기"></button>
     <div class="zoom-ctl">
       <button id="btnZoomIn" onclick="zoomBy(1.25)"></button>
       <button id="btnZoomFit" onclick="zoomFit()"></button>
@@ -1941,8 +1951,23 @@ function wrapText(text, maxWidth, font){
   if(cur) lines.push(cur);
   return lines;
 }
+/* 노드 아래 메모 표시 여부 (기기별 보기 설정이라 이 브라우저에만 저장) */
+const NOTES_KEY = 'mm-show-notes';
+let showNotes = true;
+try{ showNotes = localStorage.getItem(NOTES_KEY) !== '0'; }catch(x){}
+function renderNoteToggle(){
+  const b = document.getElementById('btnNoteToggle'); if(!b) return;
+  b.classList.toggle('on', showNotes);
+  b.textContent = showNotes ? '📝 메모 ON' : '📝 메모 OFF';
+}
+function toggleNotes(){
+  showNotes = !showNotes;
+  try{ localStorage.setItem(NOTES_KEY, showNotes ? '1' : '0'); }catch(x){}
+  renderNoteToggle();
+  renderMap();
+}
 function noteWidth(map, n){
-  return nodeNote(n) ? nodeSize(map, n).w * NOTE_W_RATIO : 0;
+  return (showNotes && nodeNote(n)) ? nodeSize(map, n).w * NOTE_W_RATIO : 0;
 }
 /* 메모까지 포함한 노드의 가로 폭 (화면 맞춤·내보내기 범위 계산용) */
 function nodeBoxW(map, n){
@@ -1955,6 +1980,7 @@ function noteLeftX(lines, scale){
   return -maxW * (scale || 1) / 2;
 }
 function wrapNoteLines(map, n){
+  if(!showNotes) return [];
   const maxW = noteWidth(map, n);
   const raw = String((n && n.note) || '').trim();
   if(!raw) return [];
@@ -4765,6 +4791,7 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   set('btnZoomIn','plus',17);
   set('btnZoomFit','fit',16);
   set('btnZoomOut','minus',17);
+  renderNoteToggle();
   document.querySelectorAll('.bottom-nav .nav-item').forEach(b =>
     b.addEventListener('click', () => {
       document.querySelectorAll('.bottom-nav .nav-item').forEach(x => x.classList.toggle('active', x === b));
