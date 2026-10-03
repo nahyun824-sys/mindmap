@@ -1923,8 +1923,9 @@ const world = document.getElementById('world');
 const wrap = document.getElementById('canvasWrap');
 const mctx = document.createElement('canvas').getContext('2d');
 
-/* 노드 아래 메모는 노드 폭의 2.6배까지 가로로 보여주고, 넘는 글자는 다음 줄로 줄바꿈한다 (메모 전체를 표시) */
-const NOTE_W_RATIO = 2.6;
+/* 노드 아래 메모는 모든 노드(일반·독립·중심)에서 같은 폭으로 보여주고, 넘는 글자는 다음 줄로 줄바꿈한다 (메모 전체를 표시)
+   노드 이름 길이에 따라 메모 폭이 달라지지 않도록 기본 노드 폭(110)의 2.6배로 고정 */
+const NOTE_W = 110 * 2.6;
 const NOTE_FONT = "500 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 function wrapText(text, maxWidth, font){
   mctx.font = font;
@@ -1962,7 +1963,7 @@ function toggleNotes(){
   renderMap();
 }
 function noteWidth(map, n){
-  return (showNotes && nodeNote(n)) ? nodeSize(map, n).w * NOTE_W_RATIO : 0;
+  return (showNotes && nodeNote(n)) ? NOTE_W : 0;
 }
 /* 메모까지 포함한 노드의 가로 폭 (화면 맞춤·내보내기 범위 계산용) */
 function nodeBoxW(map, n){
