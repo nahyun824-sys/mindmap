@@ -1639,10 +1639,11 @@ function renderMiniMap(map, svgEl){
     text.textContent = label;
     ng.appendChild(text);
     let belowY = h/2 + 12;
-    wrapNoteLines(map, n).forEach(line => {
+    const noteLines = wrapNoteLines(map, n), noteX = noteLeftX(noteLines, 9.5/10.5);
+    noteLines.forEach(line => {
       const nt = document.createElementNS(SVGNS,'text');
-      nt.setAttribute('x', 0); nt.setAttribute('y', belowY);
-      nt.setAttribute('text-anchor','middle'); nt.setAttribute('font-size', 9.5);
+      nt.setAttribute('x', noteX); nt.setAttribute('y', belowY);
+      nt.setAttribute('text-anchor','start'); nt.setAttribute('font-size', 9.5);
       nt.setAttribute('font-weight', 500); nt.setAttribute('fill', C.sub);
       nt.textContent = line; ng.appendChild(nt); belowY += 13;
     });
@@ -1926,6 +1927,12 @@ function noteWidth(map, n){
 function nodeBoxW(map, n){
   return Math.max(nodeSize(map, n).w, noteWidth(map, n));
 }
+/* 메모 줄들을 노드 아래 가운데에 블록으로 두고, 글자는 왼쪽 정렬할 때의 시작 x */
+function noteLeftX(lines, scale){
+  mctx.font = NOTE_FONT;
+  const maxW = Math.max(0, ...lines.map(l => mctx.measureText(l).width));
+  return -maxW * (scale || 1) / 2;
+}
 function wrapNoteLines(map, n){
   const maxW = noteWidth(map, n);
   const raw = String((n && n.note) || '').trim();
@@ -2173,11 +2180,12 @@ function renderMap(){
     g.appendChild(text);
 
     let belowY = h/2 + 13;
-    wrapNoteLines(map, n).forEach(line => {
+    const noteLines = wrapNoteLines(map, n), noteX = noteLeftX(noteLines);
+    noteLines.forEach(line => {
       const noteText = document.createElementNS(SVGNS,'text');
-      noteText.setAttribute('x', 0);
+      noteText.setAttribute('x', noteX);
       noteText.setAttribute('y', belowY);
-      noteText.setAttribute('text-anchor','middle');
+      noteText.setAttribute('text-anchor','start');
       noteText.setAttribute('font-size', 10.5);
       noteText.setAttribute('font-weight', 500);
       noteText.setAttribute('fill', C.sub);
