@@ -1897,9 +1897,8 @@ const world = document.getElementById('world');
 const wrap = document.getElementById('canvasWrap');
 const mctx = document.createElement('canvas').getContext('2d');
 
-/* 노드 아래 메모의 "적정 크기": 이 너비를 넘는 글자는 다음 줄로 줄바꿈하고, 줄 수도 제한한다 */
+/* 노드 아래 메모의 "적정 크기": 이 너비를 넘는 글자는 다음 줄로 줄바꿈한다 (메모 전체를 표시) */
 const NOTE_MAX_W = 150;
-const NOTE_MAX_LINES = 4;
 const NOTE_FONT = "500 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 function wrapText(text, maxWidth, font){
   mctx.font = font;
@@ -1921,16 +1920,13 @@ function wrapText(text, maxWidth, font){
   return lines;
 }
 function wrapNoteLines(n){
-  const full = nodeNote(n);
-  if(!full) return [];
-  let lines = wrapText(full, NOTE_MAX_W, NOTE_FONT);
-  if(lines.length > NOTE_MAX_LINES){
-    lines = lines.slice(0, NOTE_MAX_LINES);
-    let last = lines[NOTE_MAX_LINES-1];
-    mctx.font = NOTE_FONT;
-    while(last.length > 1 && mctx.measureText(last + '…').width > NOTE_MAX_W) last = last.slice(0, -1);
-    lines[NOTE_MAX_LINES-1] = last + '…';
-  }
+  const raw = String((n && n.note) || '').trim();
+  if(!raw) return [];
+  const lines = [];
+  raw.split('\n').forEach(para => {
+    const t = para.replace(/\s+/g, ' ').trim();
+    if(t) lines.push(...wrapText(t, NOTE_MAX_W, NOTE_FONT));
+  });
   return lines;
 }
 function nodeSize(map, n){
