@@ -335,6 +335,15 @@
   .field-row{display:flex; gap:8px;}
   .field-row .field{flex:1;}
   .sheet-btns{display:flex; gap:8px; margin-top:10px; flex:0 0 auto;}
+  /* 메모 편집 모드: 노드 편집창 위에 뜨는 큰 메모 편집창 */
+  .label-row{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px;}
+  .label-row label{margin-bottom:0;}
+  .note-mode-btn{font-size:11px; font-weight:600; color:var(--primary); background:var(--line); padding:4px 9px; border-radius:7px;}
+  .note-backdrop{position:absolute; inset:0; background:rgba(0,0,0,.25); z-index:55; display:none;}
+  .note-backdrop.show{display:block;}
+  #noteSheet{z-index:60; width:min(720px, calc(100vw - 24px)); height:min(640px, 84vh);}
+  #noteEditArea{flex:1; min-height:0; resize:none; font-size:15px; line-height:1.6;}
+  .note-count{font-size:11px; color:var(--sub); margin-top:6px; text-align:right; flex:0 0 auto;}
   .primary-btn{
     flex:1; background:var(--primary); color:var(--on-primary); font-size:14px; font-weight:600;
     padding:12px; border-radius:11px; transition:transform .1s;
@@ -803,6 +812,18 @@
   <h3 id="editTitle">노드 편집</h3>
   <div class="sheet-body"><form id="editForm"></form></div>
   <div class="sheet-btns" id="editBtns"></div>
+</div>
+
+<!-- 메모 편집 모드 -->
+<div class="note-backdrop" id="noteBackdrop" onclick="closeNoteEditor(false)"></div>
+<div class="sheet" id="noteSheet">
+  <h3>📝 메모 편집</h3>
+  <textarea id="noteEditArea" placeholder="참고사항, 설명 등을 입력하세요"></textarea>
+  <div class="note-count" id="noteCount"></div>
+  <div class="sheet-btns">
+    <button type="button" class="plain-btn" onclick="closeNoteEditor(false)">취소</button>
+    <button type="button" class="primary-btn" onclick="closeNoteEditor(true)">완료</button>
+  </div>
 </div>
 
 <!-- 연결선 편집 -->
@@ -2983,7 +3004,7 @@ function openEdit(id){
     title.textContent = '노드 편집';
     html = `<div class="field"><label>내용</label><input name="text" value="${esc(n.text)}" required></div>`;
   }
-  html += `<div class="field"><label>메모 (노드 아래에 표시)</label><textarea name="note" rows="2" placeholder="참고사항, 설명 등을 입력하세요">${esc(n.note||'')}</textarea></div>`;
+  html += `<div class="field"><div class="label-row"><label>메모 (노드 아래에 표시)</label><button type="button" class="note-mode-btn" onclick="openNoteEditor()">✏️ 메모 편집 모드</button></div><textarea name="note" rows="2" placeholder="참고사항, 설명 등을 입력하세요">${esc(n.note||'')}</textarea></div>`;
   html += `<div class="field-row">
     <div class="field"><label>금액 (${curInfo(map).sym}, 선택사항)</label><input name="cost" type="number" inputmode="decimal" min="0" step="${curInfo(map).step}" value="${n.cost ? n.cost : ''}" placeholder="0"></div>
     <div class="field"><label>분류</label><select name="costcat">${costCatOptions(n.costCat)}</select></div>
@@ -3073,6 +3094,30 @@ function openEdit(id){
     first.placeholder = '내용 입력…';
     first.focus();
   }
+}
+/* 메모 편집 모드: 노드 편집창의 메모를 큰 편집창에서 고치고, 완료하면 메모란에 반영해 바로 저장 */
+function openNoteEditor(){
+  const src = document.querySelector('#editForm textarea[name=note]'); if(!src) return;
+  const area = document.getElementById('noteEditArea');
+  area.value = src.value;
+  updateNoteCount();
+  area.oninput = updateNoteCount;
+  document.getElementById('noteBackdrop').classList.add('show');
+  document.getElementById('noteSheet').classList.add('show');
+  area.focus();
+}
+function updateNoteCount(){
+  document.getElementById('noteCount').textContent = document.getElementById('noteEditArea').value.length + '자';
+}
+function closeNoteEditor(apply){
+  const area = document.getElementById('noteEditArea');
+  if(apply){
+    const src = document.querySelector('#editForm textarea[name=note]');
+    if(src){ src.value = area.value; saveEdit(true); }
+  }
+  area.blur();
+  document.getElementById('noteBackdrop').classList.remove('show');
+  document.getElementById('noteSheet').classList.remove('show');
 }
 function saveEdit(keepOpen){
   const map = curMap(); const n = map && map.nodes[editId]; if(!n) return;
@@ -3472,6 +3517,7 @@ function openSheet(id){
 }
 function closeSheets(){
   document.getElementById('backdrop').classList.remove('show');
+  document.getElementById('noteBackdrop').classList.remove('show');
   /* 시트를 숨겨도 포커스가 안의 입력창에 남아 있으면 캔버스 단축키(엔터·Tab·방향키)가 계속 막힌다.
      연속 작성 흐름이 끊기지 않도록 닫을 때 포커스를 놓아준다. */
   const a = document.activeElement;
